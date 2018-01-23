@@ -23,7 +23,7 @@ unsigned int	*hpath, *vpath;
 typedef struct
 {
 unsigned short	from, to, idx, cuts, hpaths, vpaths, sx, sy, sign;
-unsigned short	cut[24];
+unsigned short	cut[16];
 unsigned int	*hpath, *vpath;
 } STEP;
 
@@ -47,6 +47,11 @@ SLOT		slot[NB_MAX_SLOTS];
 STEP		step[NB_MAX_STEPS];
 GRID		horizontal, vertical;
 } BOARD;
+
+void printStep(STEP *pstep)
+{
+	printf("idx=%d sx=%d sy=%d sign=%d  from=%d to=%d\n", pstep->idx, pstep->sx, pstep->sy, pstep->sign, pstep->from, pstep->to);
+}
 
 bool init_board(BOARD *board, int width, int height, int depth, int min_direction)
 {
@@ -76,6 +81,7 @@ bool init_board(BOARD *board, int width, int height, int depth, int min_directio
 			}
 		}
 	}
+	printf("debug.slots = %d\n", board->slots);
 	// neighbors
 	board->steps = 0;
 	for (int s1 = 0 ; s1 < board->slots -1 ; s1++)
@@ -110,6 +116,7 @@ bool init_board(BOARD *board, int width, int height, int depth, int min_directio
 			}
 		}
 	}
+	printf("debug.steps = %d\n", board->steps);
 	int max_neighbors = 0;
 	for (int s = 0 ; s < board->slots ; s++)
 	{
@@ -117,29 +124,40 @@ bool init_board(BOARD *board, int width, int height, int depth, int min_directio
 	}
 	printf("debug.max_neighbors = %d\n", max_neighbors);
 	// cuts
-	for (int s1 = 0 ; s1 < board->steps ; s1++)
+	for (int s1 = 0 ; s1 < board->steps -1; s1++)
 	{
-		for (int s2 = 0 ; s2 < board->steps ; s2++)
+		for (int s2 = s1+1 ; s2 < board->steps ; s2++)
 		{
-			int sqd = (board->step[s1].sx - board->step[s2].sx) * (board->step[s1].sx - board->step[s2].sx) + (board->step[s1].sy - board->step[s2].sy) * (board->step[s1].sy - board->step[s2].sy);
-			if (s1 != s2 && (sqd < 4 || (sqd == 4 || board->step[s1].sign != board->step[s2].sign)))
+		int sqd = (board->step[s1].sx - board->step[s2].sx) * (board->step[s1].sx - board->step[s2].sx);
+		sqd += (board->step[s1].sy - board->step[s2].sy) * (board->step[s1].sy - board->step[s2].sy);
+
+			if (s1 != s2 && (sqd < 4 || (sqd == 4 && board->step[s1].sign != board->step[s2].sign)))
 			{
 				board->step[s1].cut[board->step[s1].cuts] = s2;
 				board->step[s1].cuts++;
 
-				//board->step[s2].cut[board->step[s2].cuts] = s1;
-				//board->step[s2].cuts++;
+				board->step[s2].cut[board->step[s2].cuts] = s1;
+				board->step[s2].cuts++;
 			}
 		}
 	}
-	int max_cuts = 0;
+	int max_cuts = 0, sign = 0, sx = 0, sy = 0;
 	for (int s = 0 ; s < board->steps ; s++)
 	{
+		sign += board->step[s].sign;
+		sx += board->step[s].sx;
+		sy += board->step[s].sy;
 		if (board->step[s].cuts > max_cuts) max_cuts = board->step[s].cuts;
+printStep(&board->step[s]);
+printf("step[%03d].cuts = %d:", s, board->step[s].cuts);
+for (int icut = 0 ; icut < board->step[s].cuts ; icut++)
+	printf(" %d", board->step[s].cut[icut]);
+printf("\n");
 	}
 	printf("debug.max_cuts = %d\n", max_cuts);
-	printf("debug.slots = %d\n", board->slots);
-	printf("debug.steps = %d\n", board->steps);
+	printf("debug.avg_sign = %6.4f\n", (double)sign/board->steps);
+	printf("debug.avg_sx = %6.4f\n", (double)sx/board->steps);
+	printf("debug.avg_sy = %6.4f\n", (double)sy/board->steps);
 
 	// init arrays
 	int sz = 2048000;
