@@ -1,6 +1,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <sys/time.h>
@@ -34,11 +35,21 @@ struct timeval t0, t_end;
 	move.orientation = orientation;
 	move.steps = 0;
 	int complexity = state_move(board, state_to, &move);
+
+	double score = score_state(board, state_to, 0.9, 0.0, 0.0, 0.0);
 	gettimeofday(&t_end, NULL);
 	printf("move   %6.2f ms  complexity = %9d   (%d+%d %6.2f%%, %d+%d %6.2f%%)\n", duration(&t0, &t_end), complexity,
 		state_to->horizontal.pegs, state_to->horizontal.links, 100.0 * state_to->horizontal.count / state_to->horizontal.waves,
 		state_to->vertical.pegs, state_to->vertical.links, 100.0 * state_to->vertical.count / state_to->vertical.waves);
 
+	printf("eval H = %6.2f %%\n", score);
+}
+
+int parse_slot(BOARD *board, char *pslot)
+{
+	if (strlen(pslot) == 2 && isupper((int)pslot[0]) && isupper((int)pslot[1]))
+		return find_slot(board, pslot);
+	else return atoi(pslot);
 }
 
 //
@@ -85,46 +96,63 @@ BOARD board;
 		while (1)
 		{
 			fgets(command, 256, stdin);
-			sscanf(command, "%s %s", action, parameters);
-			if (strcmp("quit", action) == 0 || strcmp("exit", action) == 0)
-				break;
-			else if (strcmp("move", action) == 0)
+			if (strlen(command) > 0)
 			{
-				int slot = atoi(parameters);
-				if (orientation == 'H')
+				sscanf(command, "%s %s", action, parameters);
+				if (strcmp("quit", action) == 0 || strcmp("exit", action) == 0)
+					break;
+				else if (strcmp("move", action) == 0)
 				{
-					move(&board, &state_h, &state_v, slot, orientation);
-					orientation = 'V';
-					current_state = &state_v;
+					int slot = parse_slot(&board, parameters);
+					if (orientation == 'H')
+					{
+						move(&board, &state_h, &state_v, slot, orientation);
+						orientation = 'V';
+						current_state = &state_v;
+					}
+					else
+					{
+						move(&board, &state_v, &state_h, slot, orientation);
+						orientation = 'H';
+						current_state = &state_h;
+					}
+					move_number++;
 				}
-				else
+				else if (strcmp("slot", action) == 0)
 				{
-					move(&board, &state_v, &state_h, slot, orientation);
-					orientation = 'H';
+					int slot = parse_slot(&board, parameters);
+					printSlot(&board.slot[slot]);
+				}
+				else if (strcmp("step", action) == 0)
+				{
+					int step = atoi(parameters);
+					printStep(&board.step[step]);
+				}
+				else if (strcmp("lambda", action) == 0)
+				{
+					for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
+					{
+if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertical.lambda[lambda].waves > 0)
+	printf("lambda %02d:   %6.2f %%  (%8d+%8d+%8d)  %6.2f %%  (%8d+%8d+%8d)\n", lambda,
+		current_state->horizontal.lambda[lambda].score, current_state->horizontal.lambda[lambda].waves,
+		current_state->horizontal.lambda[lambda].pegs, current_state->horizontal.lambda[lambda].links,
+		current_state->vertical.lambda[lambda].score, current_state->vertical.lambda[lambda].waves,
+		current_state->vertical.lambda[lambda].pegs, current_state->vertical.lambda[lambda].links);
+					}
+				}
+				else if (strcmp("reset", action) == 0)
+				{
 					current_state = &state_h;
+					init_state(&state_h, board.horizontal.paths, board.vertical.paths);
+					move_number = 0;
+					orientation = 'H';
 				}
-				move_number++;
-			}
-			else if (strcmp("slot", action) == 0)
-			{
-				int slot = atoi(parameters);
-				printSlot(&board.slot[slot]);
-			}
-			else if (strcmp("step", action) == 0)
-			{
-				int step = atoi(parameters);
-				printStep(&board.step[step]);
+				action[0] = parameters[0] = 0;
 			}
 			printf("k2z> ");
 		}
 		printf("bye.\n");
-		/*move(&board, &s0, &s1, 40, 'H');
-		move(&board, &s1, &s2, 42, 'V');
-		move(&board, &s2, &s3, 54, 'H');
-		move(&board, &s3, &s4, 65, 'V');*/
-
-		//printStep(STEP *pstep);
-
+		free_board(&board);
 	}
 	else
 	{

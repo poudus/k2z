@@ -11,16 +11,84 @@
 
 static int gslots = 0, gsteps = 0;
 
+int find_slot(BOARD *board, char *pslot)
+{
+int slot = -1;
+
+	for (int s = 0 ; s < board->slots ; s++)
+	{
+		if (strcmp(pslot, board->slot[s].code) == 0)
+		{
+			slot = s;
+			break;
+		}
+	}
+	return slot;
+}
+
 void printSlot(SLOT *pslot)
 {
-	printf("slot %3d: x=%02d y=%02d  code=%s\n", pslot->idx, pslot->x, pslot->y, pslot->code);
+char neighbors[64], buf[16];
+
+	neighbors[0] = 0;
+	for (int n = 0 ; n < pslot->neighbors ; n++)
+	{
+		if (n == 0)
+			sprintf(buf, "%d/%d", pslot->neighbor[n], pslot->link[n]);
+		else
+			sprintf(buf, ", %d/%d", pslot->neighbor[n], pslot->link[n]);
+		strcat(neighbors, buf);
+	}
+	printf("slot %3d: x=%02d y=%02d  code=%s  %d neighbors {%s}\n", pslot->idx, pslot->x, pslot->y, pslot->code,
+		pslot->neighbors, neighbors);
 }
 
 void printStep(STEP *pstep)
 {
-	printf("step: %d/%s  sx=%d sy=%d  sign=%d  from=%d to=%d\n",
+char cuts[64], buf[16];
+
+	cuts[0] = 0;
+	for (int n = 0 ; n < pstep->cuts ; n++)
+	{
+		if (n == 0)
+			sprintf(buf, "%d", pstep->cut[n]);
+		else
+			sprintf(buf, ", %d", pstep->cut[n]);
+		strcat(cuts, buf);
+	}
+	printf("step: %d/%s  sx=%d sy=%d  sign=%d  from=%d to=%d  %d cuts {%s}\n",
 		pstep->idx, pstep->code, pstep->sx, pstep->sy, pstep->sign,
-		pstep->from, pstep->to);
+		pstep->from, pstep->to, pstep->cuts, cuts);
+}
+
+void free_board(BOARD *board)
+{
+	for (int slot = 0 ; slot < board->slots ; slot++)
+	{
+		if (board->slot[slot].hpaths > 0 && board->slot[slot].hpath != NULL)
+		{
+			free(board->slot[slot].hpath);
+			board->slot[slot].hpaths = 0;
+		}
+		if (board->slot[slot].vpaths > 0 && board->slot[slot].vpath != NULL)
+		{
+			free(board->slot[slot].vpath);
+			board->slot[slot].vpaths = 0;
+		}
+	}
+	for (int step = 0 ; step < board->steps ; step++)
+	{
+		if (board->step[step].hpaths > 0 && board->step[step].hpath != NULL)
+		{
+			free(board->step[step].hpath);
+			board->step[step].hpaths = 0;
+		}
+		if (board->step[step].vpaths > 0 && board->step[step].vpath != NULL)
+		{
+			free(board->step[step].vpath);
+			board->step[step].vpaths = 0;
+		}
+	}
 }
 
 void search_path_v(BOARD *board, int slot, int step, int depth,
@@ -206,16 +274,16 @@ bool init_board(BOARD *board, int width, int height, int depth, int min_directio
 		{
 			if ((board->slot[s2].x - board->slot[s1].x)*(board->slot[s2].x - board->slot[s1].x) + (board->slot[s2].y - board->slot[s1].y)*(board->slot[s2].y - board->slot[s1].y) == 5)
 			{
-				board->slot[s1].neighbor[board->slot[s1].neighbors] = board->slot[s2].idx;
-				board->slot[s1].link[board->slot[s1].neighbors] = board->steps+1;
+				board->slot[s1].neighbor[board->slot[s1].neighbors] = s2;
+				board->slot[s1].link[board->slot[s1].neighbors] = board->steps;
 				board->slot[s1].neighbors++;
 
-				board->slot[s2].neighbor[board->slot[s2].neighbors] = board->slot[s1].idx;
-				board->slot[s2].link[board->slot[s2].neighbors] = board->steps+1;
+				board->slot[s2].neighbor[board->slot[s2].neighbors] = s1;
+				board->slot[s2].link[board->slot[s2].neighbors] = board->steps;
 				board->slot[s2].neighbors++;
 
-				board->step[board->steps].from = board->slot[s1].idx;
-				board->step[board->steps].to = board->slot[s2].idx;
+				board->step[board->steps].from = s1;
+				board->step[board->steps].to = s2;
 				board->step[board->steps].idx = board->steps;
 				board->step[board->steps].sx = board->slot[s2].x + board->slot[s1].x;
 				board->step[board->steps].sy = board->slot[s2].y + board->slot[s1].y;

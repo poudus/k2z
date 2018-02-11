@@ -60,8 +60,11 @@ GRID		horizontal, vertical;
 
 void printSlot(SLOT *pslot);
 void printStep(STEP *pstep);
+int find_slot(BOARD *board, char *pslot);
 
 bool init_board(BOARD *board, int width, int height, int depth, int min_direction);
+
+void free_board(BOARD *board);
 
 #endif
 

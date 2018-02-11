@@ -5,24 +5,80 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <sys/time.h>
+#include <math.h>
 
 
 #include "state.h"
 
-
-double score_lambda(LAMBDA *lambda)
+double score(unsigned int ui1, unsigned int ui2)
 {
-	return 50.0;
+unsigned int sum = ui1 + ui2;
+
+	if (sum > 0.0)
+		return 100.0 * ui1 / sum;
+	else
+		return 50.0;
 }
 
-double score_field(FIELD *field)
+double score_lambda(LAMBDA *l1, LAMBDA *l2, double weight_pegs, double weight_links, double weight_spread)
 {
-	return 50.0;
+double weight = 1.0 + fabs(weight_pegs) + fabs(weight_links) + fabs(weight_spread), sum_score = 0.0;
+
+	sum_score = score(l1->waves, l2->waves);
+	sum_score += weight_pegs * score(l1->pegs, l2->pegs);
+	sum_score += weight_links * score(l1->links, l2->links);
+	sum_score += weight_spread * score(l1->spread, l2->spread);
+
+	l1->score = sum_score / weight;
+	l2->score = 100.0 - l1->score;
+
+	return l1->score;
 }
 
-double evaluation(STATE *state)
+void lambda_field(GRID *grid, FIELD *field)
 {
-	return 50.0;
+int lambda = 0;
+
+	bzero(&field->lambda[0], PATH_MAX_LENGTH * sizeof(LAMBDA));
+	for (int w = 0 ; w < field->waves ; w++)
+	{
+		if (field->wave[w].status == ' ')
+		{
+			lambda = grid->path[w].slots - field->wave[w].pegs;
+
+			field->lambda[lambda].pegs += field->wave[w].pegs;
+			field->lambda[lambda].links += field->wave[w].links;
+			field->lambda[lambda].spread += field->wave[w].spread;
+
+			field->lambda[lambda].waves++;
+
+			for (int s = 0 ; s < grid->path[w].slots ; s++)
+				field->lambda[lambda].slot[grid->path[w].slot[s]]++;
+		}
+	}
+}
+
+double score_state(BOARD *board, STATE *state, double lambda_decay, double weight_pegs, double weight_links, double weight_spread)
+{
+double	sum_weight = 0.0, sum_h = 0.0, lambda_weight = 1.0;
+
+	lambda_field(&board->horizontal, &state->horizontal);
+	lambda_field(&board->vertical, &state->vertical);
+	
+	for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
+	{
+		if (state->horizontal.lambda[lambda].waves > 0 || state->vertical.lambda[lambda].waves > 0)
+		{
+			sum_h += lambda_weight * score_lambda(&state->horizontal.lambda[lambda],
+								&state->vertical.lambda[lambda],
+								weight_pegs, weight_links, weight_spread); 
+			sum_weight += lambda_weight;
+			lambda_weight *= lambda_decay;
+		}
+	}
+	// track moves
+	state->score = sum_h / sum_weight;
+	return state->score;
 }
 
 
@@ -137,15 +193,16 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 	if (move->orientation == 'H')
 	{
 		state->horizontal.peg[state->horizontal.pegs] = move->slot;
-		for (int n = 0 ; n < board->slot[move->slot].neighbors ; n++)
+		for (int n = 0 ; n < board->slot[move->slot].neighbors ; n++) // for all neighbors
 		{
 			int sn = board->slot[move->slot].neighbor[n];
 			int ln = board->slot[move->slot].link[n];
-			bool bcut = false;
-			for (int p = 0 ; p < state->horizontal.pegs && !bcut ; p++)
+			bool bpeg = false, bcut = false;
+			for (int p = 0 ; p < state->horizontal.pegs && !bcut ; p++) // for all horizontal pegs
 			{
-				if (sn == state->horizontal.peg[p])
+				if (sn == state->horizontal.peg[p]) // neighbor is peg
 				{
+					bpeg = true;
 					for (int k = 0 ; k < state->horizontal.links && !bcut ; k++)
 					{
 						for (int kk = 0 ; kk < board->step[ln].cuts ; kk++)
@@ -170,7 +227,7 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 					}
 				}
 			}
-			if (!bcut)
+			if (bpeg && !bcut)
 			{
 				state->horizontal.link[state->horizontal.links] = ln;
 				state->horizontal.links++;
@@ -189,15 +246,16 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 	else if (move->orientation == 'V')
 	{
 		state->vertical.peg[state->vertical.pegs] = move->slot;
-		for (int n = 0 ; n < board->slot[move->slot].neighbors ; n++)
+		for (int n = 0 ; n < board->slot[move->slot].neighbors ; n++) // for all neighbors
 		{
 			int sn = board->slot[move->slot].neighbor[n];
 			int ln = board->slot[move->slot].link[n];
-			for (int p = 0 ; p < state->vertical.pegs ; p++)
+			bool bpeg = false, bcut = false;
+			for (int p = 0 ; p < state->vertical.pegs ; p++) // for all vertical pegs
 			{
-				if (sn == state->vertical.peg[p])
+				if (sn == state->vertical.peg[p]) // neighbor is peg
 				{
-					bool bcut = false;
+					bpeg = true;
 					for (int k = 0 ; k < state->horizontal.links && !bcut ; k++)
 					{
 						for (int kk = 0 ; kk < board->step[ln].cuts ; kk++)
@@ -220,13 +278,13 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 							}
 						}
 					}
-					if (!bcut)
-					{
-						state->vertical.link[state->vertical.links] = ln;
-						state->vertical.links++;
-printf("debug.move: vertical link created = %d\n", ln);
-					}
 				}
+			}
+			if (bpeg && !bcut)
+			{
+				state->vertical.link[state->vertical.links] = ln;
+				state->vertical.links++;
+printf("debug.move: vertical link created = %d, sn = %d\n", ln, sn);
 			}
 		}
 		state->vertical.pegs++;
