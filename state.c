@@ -71,16 +71,66 @@ double	sum_weight = 0.0, sum_h = 0.0, lambda_weight = 1.0;
 		{
 			sum_h += lambda_weight * score_lambda(&state->horizontal.lambda[lambda],
 								&state->vertical.lambda[lambda],
-								weight_pegs, weight_links, weight_spread); 
+								weight_pegs, weight_links, weight_spread);
+			state->horizontal.lambda[lambda].weight = state->vertical.lambda[lambda].weight = lambda_weight;    
 			sum_weight += lambda_weight;
 			lambda_weight *= lambda_decay;
 		}
 	}
 	// track moves
+	state->horizontal.max_weight = state->vertical.max_weight = 0.0;
+	for (int s = 0 ; s < board->slots ; s++)
+	{
+		state->horizontal.track[s].idx = state->vertical.track[s].idx = s;
+		state->horizontal.track[s].value = state->vertical.track[s].value = 0.0;
+		for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
+		{
+state->horizontal.track[s].value += state->horizontal.lambda[lambda].slot[s] * state->horizontal.lambda[lambda].weight;
+state->vertical.track[s].value += state->vertical.lambda[lambda].slot[s] * state->vertical.lambda[lambda].weight;
+		}
+		state->horizontal.track[s].weight = 100.0 * state->horizontal.track[s].value / state->horizontal.waves;
+		if (state->horizontal.track[s].weight > state->horizontal.max_weight)
+			state->horizontal.max_weight = state->horizontal.track[s].weight;
+		state->vertical.track[s].weight = 100.0 * state->vertical.track[s].value / state->vertical.waves;
+		if (state->vertical.track[s].weight > state->vertical.max_weight)
+			state->vertical.max_weight = state->vertical.track[s].weight;
+	}
 	state->score = sum_h / sum_weight;
 	return state->score;
 }
 
+int cmpmove(const void *p1, const void *p2)
+{
+	if (((TRACK*)p2)->weight > ((TRACK*)p1)->weight)
+		return 1;
+	else
+		return -1;
+}
+
+int state_moves(BOARD *board, STATE *state, double dw, TRACK *move)
+{
+double w, wmin = 0.0;
+int	moves = 0;
+
+	if (dw > 0.0)
+		wmin = dw;
+	else
+		wmin = (state->horizontal.max_weight + state->vertical.max_weight) / 2.0 + dw;
+
+	for (int s = 0 ; s < board->slots ; s++)
+	{
+		w = (state->horizontal.track[s].weight + state->vertical.track[s].weight) / 2.0;
+		if (w >= wmin)
+		{
+			move[moves].idx = s;
+			move[moves].value = state->horizontal.track[s].value + state->vertical.track[s].value;
+			move[moves].weight = w;
+			moves++;
+		}
+	}
+	qsort(move, moves, sizeof(TRACK), cmpmove);
+	return moves;
+}
 
 // Q
 long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths)

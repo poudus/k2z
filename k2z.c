@@ -35,14 +35,22 @@ struct timeval t0, t_end;
 	move.orientation = orientation;
 	move.steps = 0;
 	int complexity = state_move(board, state_to, &move);
-
-	double score = score_state(board, state_to, 0.9, 0.0, 0.0, 0.0);
 	gettimeofday(&t_end, NULL);
+
 	printf("move   %6.2f ms  complexity = %9d   (%d+%d %6.2f%%, %d+%d %6.2f%%)\n", duration(&t0, &t_end), complexity,
 		state_to->horizontal.pegs, state_to->horizontal.links, 100.0 * state_to->horizontal.count / state_to->horizontal.waves,
 		state_to->vertical.pegs, state_to->vertical.links, 100.0 * state_to->vertical.count / state_to->vertical.waves);
+}
 
-	printf("eval H = %6.2f %%\n", score);
+void eval(BOARD *board, STATE *state, double lambda_decay)
+{
+struct timeval t0, t_end;
+
+	gettimeofday(&t0, NULL);
+	double score = score_state(board, state, lambda_decay, 0.0, 0.0, 0.0);
+	gettimeofday(&t_end, NULL);
+
+	printf("eval H = %6.2f %%   (%6.2f ms)\n", score, duration(&t0, &t_end));
 }
 
 int parse_slot(BOARD *board, char *pslot)
@@ -117,6 +125,23 @@ BOARD board;
 						current_state = &state_h;
 					}
 					move_number++;
+				}
+				else if (strcmp("eval", action) == 0)
+				{
+					double lambda_decay = 1.0;
+					if (strlen(parameters) > 0)
+						lambda_decay = atof(parameters);
+					eval(&board, current_state, lambda_decay);
+				}
+				else if (strcmp("moves", action) == 0)
+				{
+					double dw = -1.0;
+					if (strlen(parameters) > 0)
+						dw = atof(parameters);
+					TRACK move[256];
+					int nb_moves = state_moves(&board, current_state, dw, &move[0]);
+	for (int m = 0 ; m < nb_moves ; m++)
+		printf("%03d: %3d/%s  %6.2f %%\n", m, move[m].idx, board.slot[move[m].idx].code, move[m].weight);
 				}
 				else if (strcmp("slot", action) == 0)
 				{
