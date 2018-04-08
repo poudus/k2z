@@ -232,7 +232,7 @@ search_path_h(board, sn, board->slot[slot].link[n], depth+1, slots, pslot, steps
 }
 
 
-bool init_board(BOARD *board, int width, int height, int depth, int min_direction)
+unsigned long init_board(BOARD *board, int width, int height, int depth, int min_direction)
 {
 	bzero(board, sizeof(BOARD));
 	board->width = width;
@@ -562,8 +562,8 @@ sqd += (board->step[s1].sy - board->step[s2].sy) * (board->step[s1].sy - board->
 		}
 		printf("debug.steps_released    = %10ld  MB\n", steps_size_released / ONE_MILLION);
 		printf("debug.total_released    = %10ld  MB\n", (paths_size_released+slots_size_released+steps_size_released) / ONE_MILLION);
+		unsigned long ul_total_allocated = (size_slots+size_steps+size_hpaths+size_vpaths-paths_size_released-slots_size_released-steps_size_released) / ONE_MILLION;
+		printf("debug.total_allocated   = %10ld  MB\n", ul_total_allocated);
 
-		printf("debug.total_allocated   = %10ld  MB\n", (size_slots+size_steps+size_hpaths+size_vpaths-paths_size_released-slots_size_released-steps_size_released) / ONE_MILLION);
-
-	return true;
+	return ul_total_allocated;
 }

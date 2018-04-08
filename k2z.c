@@ -26,8 +26,8 @@ int move(BOARD *board, STATE *state_from, STATE *state_to, unsigned short slot, 
 {
 struct timeval t0, t_end;
 
-	clone_state(state_from, state_to);
 	gettimeofday(&t0, NULL);
+	clone_state(state_from, state_to);
 	//printf("init.clone  %6.2f ms\n", duration(&t_init_s0, &t_clone));
 
 	MOVE move;
@@ -42,15 +42,33 @@ struct timeval t0, t_end;
 		state_to->vertical.pegs, state_to->vertical.links, 100.0 * state_to->vertical.count / state_to->vertical.waves);
 }
 
-void eval(BOARD *board, STATE *state, double lambda_decay)
+void eval_orientation(BOARD *board, STATE *state, char orientation, double lambda_decay,
+		double weight_pegs, double weight_links, double weight_spread, bool bmoves)
 {
-struct timeval t0, t_end;
+struct timeval t0, t_end, t_lambda_field;
+FIELD *player = NULL, *opponent = NULL;
 
 	gettimeofday(&t0, NULL);
-	double score = score_state(board, state, lambda_decay, 0.0, 0.0, 0.0);
+	lambda_field(&board->horizontal, &state->horizontal, bmoves);
+	lambda_field(&board->vertical, &state->vertical, bmoves);
+	gettimeofday(&t_lambda_field, NULL);
+	if (orientation == 'H')
+	{
+		player = &state->horizontal;
+		opponent = &state->vertical;
+	}
+	else
+	{
+		player = &state->vertical;
+		opponent = &state->horizontal;
+	}
+	double score = eval_state(board, player, opponent, lambda_decay, weight_pegs, weight_links, weight_spread);
+
+	if (bmoves) build_state_tracks(board, state);
+
 	gettimeofday(&t_end, NULL);
 
-	printf("eval H = %6.2f %%   (%6.2f ms)\n", score, duration(&t0, &t_end));
+	printf("eval %c = %6.2f %%   (%6.2f ms, LF = %6.2f)\n", orientation, score, duration(&t0, &t_end), duration(&t0, &t_lambda_field));
 }
 
 int parse_slot(BOARD *board, char *pslot)
@@ -86,16 +104,17 @@ BOARD board;
 		printf("error.invalid-size-parameter\n");
 		return -1;
 	}
-	if (init_board(&board, width, height, 10, -1))
+	unsigned long ul_allocated = init_board(&board, width, height, 10, -1);
+	if (ul_allocated > 0)
 	{
 		gettimeofday(&t_init_board, NULL);
-		printf("init.board %6.2f ms  complexity = %d\n", duration(&t0, &t_init_board), board.horizontal.paths+board.vertical.paths);
+		printf("init.board %6.2f ms        size = %4.1f GB  complexity = %10d\n", duration(&t0, &t_init_board), (double)ul_allocated / 1000, board.horizontal.paths+board.vertical.paths);
 
 		STATE state_h, state_v, *current_state;
 		current_state = &state_h;
 		long size_s0 = init_state(&state_h, board.horizontal.paths, board.vertical.paths);
 		gettimeofday(&t_init_s0, NULL);
-		printf("init.s0     %6.2f ms        size = %ld MB\n", duration(&t_init_board, &t_init_s0), size_s0 / ONE_MILLION);
+		printf("init.s0     %6.2f ms        size = %4ld MB\n", duration(&t_init_board, &t_init_s0), size_s0 / ONE_MILLION);
 
 		char command[256], action[256], parameters[256], orientation;
 		int move_number = 0;
@@ -131,16 +150,23 @@ BOARD board;
 					double lambda_decay = 1.0;
 					if (strlen(parameters) > 0)
 						lambda_decay = atof(parameters);
-					eval(&board, current_state, lambda_decay);
+					eval_orientation(&board, current_state, orientation, lambda_decay, 0.0, 0.0, 0.0, false);
+				}
+				else if (strcmp("evalm", action) == 0)
+				{
+					double lambda_decay = 1.0;
+					if (strlen(parameters) > 0)
+						lambda_decay = atof(parameters);
+					eval_orientation(&board, current_state, orientation, lambda_decay, 0.0, 0.0, 0.0, true);
 				}
 				else if (strcmp("moves", action) == 0)
 				{
-					double dw = -1.0;
+					double opponent_decay = 1.0;
 					if (strlen(parameters) > 0)
-						dw = atof(parameters);
+						opponent_decay = atof(parameters);
 					TRACK move[256];
-					int nb_moves = state_moves(&board, current_state, dw, &move[0]);
-	for (int m = 0 ; m < nb_moves ; m++)
+					int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &move[0]);
+	for (int m = 0 ; m < 10 ; m++)
 		printf("%03d: %3d/%s  %6.2f %%\n", m, move[m].idx, board.slot[move[m].idx].code, move[m].weight);
 				}
 				else if (strcmp("slot", action) == 0)
@@ -158,9 +184,12 @@ BOARD board;
 					for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
 					{
 if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertical.lambda[lambda].waves > 0)
-	printf("lambda %02d:   %6.2f %%  (%8d+%8d+%8d)  %6.2f %%  (%8d+%8d+%8d)\n", lambda,
+	printf("lambda %02d:  [%6.4f] x  %6.2f %%  (%8d+%8d+%8d)    [%6.4f] x  %6.2f %%  (%8d+%8d+%8d)\n",
+		lambda,
+		current_state->horizontal.lambda[lambda].weight,
 		current_state->horizontal.lambda[lambda].score, current_state->horizontal.lambda[lambda].waves,
 		current_state->horizontal.lambda[lambda].pegs, current_state->horizontal.lambda[lambda].links,
+		current_state->vertical.lambda[lambda].weight,
 		current_state->vertical.lambda[lambda].score, current_state->vertical.lambda[lambda].waves,
 		current_state->vertical.lambda[lambda].pegs, current_state->vertical.lambda[lambda].links);
 					}

@@ -35,7 +35,7 @@ double weight = 1.0 + fabs(weight_pegs) + fabs(weight_links) + fabs(weight_sprea
 	return l1->score;
 }
 
-void lambda_field(GRID *grid, FIELD *field)
+void lambda_field(GRID *grid, FIELD *field, bool init_slots)
 {
 int lambda = 0;
 
@@ -52,51 +52,61 @@ int lambda = 0;
 
 			field->lambda[lambda].waves++;
 
-			for (int s = 0 ; s < grid->path[w].slots ; s++)
-				field->lambda[lambda].slot[grid->path[w].slot[s]]++;
+			if (init_slots)
+			{
+				for (int s = 0 ; s < grid->path[w].slots ; s++)
+					field->lambda[lambda].slot[grid->path[w].slot[s]]++;
+			}
 		}
 	}
 }
 
-double score_state(BOARD *board, STATE *state, double lambda_decay, double weight_pegs, double weight_links, double weight_spread)
+double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_decay,
+			double weight_pegs, double weight_links, double weight_spread)
 {
-double	sum_weight = 0.0, sum_h = 0.0, lambda_weight = 1.0;
-
-	lambda_field(&board->horizontal, &state->horizontal);
-	lambda_field(&board->vertical, &state->vertical);
+double	sum_weight = 0.0, sum_p = 0.0, lambda_weight = 1.0;
 	
 	for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
 	{
-		if (state->horizontal.lambda[lambda].waves > 0 || state->vertical.lambda[lambda].waves > 0)
+		if (player->lambda[lambda].waves > 0 || opponent->lambda[lambda].waves > 0)
 		{
-			sum_h += lambda_weight * score_lambda(&state->horizontal.lambda[lambda],
-								&state->vertical.lambda[lambda],
-								weight_pegs, weight_links, weight_spread);
-			state->horizontal.lambda[lambda].weight = state->vertical.lambda[lambda].weight = lambda_weight;    
+			sum_p += lambda_weight * score_lambda(&player->lambda[lambda], &opponent->lambda[lambda], weight_pegs, weight_links, weight_spread);
+			player->lambda[lambda].weight = opponent->lambda[lambda].weight = lambda_weight;    
 			sum_weight += lambda_weight;
 			lambda_weight *= lambda_decay;
-		}
+			//printf("L = %2d  sum_p = %6.2f  lw = %6.2f  sw = %6.2f  ld = %6.2f\n", lambda, sum_p, lambda_weight, sum_weight, lambda_decay);
+		} //else printf("no-waves\n");
 	}
-	// track moves
-	state->horizontal.max_weight = state->vertical.max_weight = 0.0;
+	return sum_p / sum_weight;
+}
+
+void build_field_tracks(BOARD *board, FIELD *player)
+{
+double sum_w = 0.0;
+
 	for (int s = 0 ; s < board->slots ; s++)
 	{
-		state->horizontal.track[s].idx = state->vertical.track[s].idx = s;
-		state->horizontal.track[s].value = state->vertical.track[s].value = 0.0;
+		player->track[s].idx = s;
+		player->track[s].value = 0.0;
+		sum_w = 0.0;
+
 		for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
 		{
-state->horizontal.track[s].value += state->horizontal.lambda[lambda].slot[s] * state->horizontal.lambda[lambda].weight;
-state->vertical.track[s].value += state->vertical.lambda[lambda].slot[s] * state->vertical.lambda[lambda].weight;
+			if (player->lambda[lambda].waves > 0)
+			{
+				player->track[s].value += (1.0 * player->lambda[lambda].slot[s] / player->lambda[lambda].waves) * player->lambda[lambda].weight;
+				sum_w += player->lambda[lambda].weight;
+			}
 		}
-		state->horizontal.track[s].weight = 100.0 * state->horizontal.track[s].value / state->horizontal.waves;
-		if (state->horizontal.track[s].weight > state->horizontal.max_weight)
-			state->horizontal.max_weight = state->horizontal.track[s].weight;
-		state->vertical.track[s].weight = 100.0 * state->vertical.track[s].value / state->vertical.waves;
-		if (state->vertical.track[s].weight > state->vertical.max_weight)
-			state->vertical.max_weight = state->vertical.track[s].weight;
+		player->track[s].weight = 100.0 * player->track[s].value / sum_w;
+		//printf("S = %3d  weight = %6.2f  value = %6.2f  sumw = %6.2f\n", s, player->track[s].weight, player->track[s].value, sum_w);
 	}
-	state->score = sum_h / sum_weight;
-	return state->score;
+}
+
+void build_state_tracks(BOARD *board, STATE *state)
+{
+	build_field_tracks(board, &state->horizontal);
+	build_field_tracks(board, &state->vertical);
 }
 
 int cmpmove(const void *p1, const void *p2)
@@ -107,26 +117,41 @@ int cmpmove(const void *p1, const void *p2)
 		return -1;
 }
 
-int state_moves(BOARD *board, STATE *state, double dw, TRACK *move)
+bool is_field_peg(FIELD *field, unsigned short slot)
 {
-double w, wmin = 0.0;
-int	moves = 0;
+	for (int s = 0 ; s < field->pegs ; s++)
+	{
+		if (field->peg[s] == slot) return true;
+	}
+	return false;
+}
 
-	if (dw > 0.0)
-		wmin = dw;
+bool is_state_peg(STATE *state, unsigned short slot)
+{
+	if (is_field_peg(&state->horizontal, slot))
+		return true;
 	else
-		wmin = (state->horizontal.max_weight + state->vertical.max_weight) / 2.0 + dw;
+		return is_field_peg(&state->vertical, slot);
+}
+
+int state_moves(BOARD *board, STATE *state, char orientation, double opponent_decay, TRACK *move)
+{
+double	v = 0.0;
+int	moves = 0;
 
 	for (int s = 0 ; s < board->slots ; s++)
 	{
-		w = (state->horizontal.track[s].weight + state->vertical.track[s].weight) / 2.0;
-		if (w >= wmin)
-		{
-			move[moves].idx = s;
-			move[moves].value = state->horizontal.track[s].value + state->vertical.track[s].value;
-			move[moves].weight = w;
-			moves++;
-		}
+		if (is_state_peg(state, s)) continue;
+
+		if (orientation == 'H')
+			v = state->horizontal.track[s].weight + opponent_decay * state->vertical.track[s].weight;
+		else
+			v = opponent_decay * state->horizontal.track[s].weight + state->vertical.track[s].weight;
+
+		move[moves].idx = s;
+		move[moves].value = v;
+		move[moves].weight = v / (1.0 + opponent_decay);
+		moves++;
 	}
 	qsort(move, moves, sizeof(TRACK), cmpmove);
 	return moves;
