@@ -144,9 +144,15 @@ int	moves = 0;
 		if (is_state_peg(state, s)) continue;
 
 		if (orientation == 'H')
+		{
+			if (board->slot[s].y == 0 || board->slot[s].y == (board->height -1)) continue;
 			v = state->horizontal.track[s].weight + opponent_decay * state->vertical.track[s].weight;
+		}
 		else
+		{
+			if (board->slot[s].x == 0 || board->slot[s].x == (board->width -1)) continue;
 			v = opponent_decay * state->horizontal.track[s].weight + state->vertical.track[s].weight;
+		}
 
 		move[moves].idx = s;
 		move[moves].value = v;
