@@ -37,20 +37,21 @@ struct timeval t0, t_end;
 	int complexity = state_move(board, state_to, &move);
 	gettimeofday(&t_end, NULL);
 
-	printf("move   %6.2f ms  complexity = %9d   (%d+%d %6.2f%%, %d+%d %6.2f%%)\n", duration(&t0, &t_end), complexity,
+	printf("move %c %s  %6.2f ms  complexity = %9d   (%d+%d %6.2f%%, %d+%d %6.2f%%)\n", orientation, board->slot[slot].code,
+		duration(&t0, &t_end), complexity,
 		state_to->horizontal.pegs, state_to->horizontal.links, 100.0 * state_to->horizontal.count / state_to->horizontal.waves,
 		state_to->vertical.pegs, state_to->vertical.links, 100.0 * state_to->vertical.count / state_to->vertical.waves);
 }
 
 void eval_orientation(BOARD *board, STATE *state, char orientation, double lambda_decay,
-		double weight_pegs, double weight_links, double weight_spread, bool bmoves)
+		double weight_pegs, double weight_links, double weight_spread, bool btracks)
 {
 struct timeval t0, t_end, t_lambda_field;
 FIELD *player = NULL, *opponent = NULL;
 
 	gettimeofday(&t0, NULL);
-	lambda_field(&board->horizontal, &state->horizontal, bmoves);
-	lambda_field(&board->vertical, &state->vertical, bmoves);
+	lambda_field(&board->horizontal, &state->horizontal, btracks);
+	lambda_field(&board->vertical, &state->vertical, btracks);
 	gettimeofday(&t_lambda_field, NULL);
 	if (orientation == 'H')
 	{
@@ -64,7 +65,7 @@ FIELD *player = NULL, *opponent = NULL;
 	}
 	double score = eval_state(board, player, opponent, lambda_decay, weight_pegs, weight_links, weight_spread);
 
-	if (bmoves) build_state_tracks(board, state);
+	if (btracks) build_state_tracks(board, state);
 
 	gettimeofday(&t_end, NULL);
 
@@ -83,9 +84,9 @@ int parse_slot(BOARD *board, char *pslot)
 //
 int main(int argc, char* argv[])
 {
-int depth = 2, width = 16, height = 16, max_moves = 10;
+int depth = 2, width = 16, height = 16, max_moves = 5;
 double contempt = 10.0, ld, od;
-double lambda_decay = 1.0, opponent_decay = 1.0;
+double lambda_decay = 0.8, opponent_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move;
 BOARD board;
 TRACK zemoves[256];
@@ -132,23 +133,42 @@ TRACK zemoves[256];
 				sscanf(command, "%s %s", action, parameters);
 				if (strcmp("quit", action) == 0 || strcmp("exit", action) == 0)
 					break;
-				else if (strcmp("move", action) == 0)
+				else if (strcmp("debug", action) == 0)
 				{
-					int slot = parse_slot(&board, parameters);
-					if (orientation == 'H')
-					{
-						move(&board, &state_h, &state_v, slot, orientation);
-						orientation = 'V';
-						current_state = &state_v;
-					}
+					if (strlen(parameters) > 0 && parameters[0] == 'Y')
+						debug_state = true;
 					else
+						debug_state = false;
+				}
+				else if (strcmp("move", action) == 0 || strcmp("default", action) == 0)
+				{
+					if (strcmp("default", action) == 0)
 					{
-						move(&board, &state_v, &state_h, slot, orientation);
-						orientation = 'H';
-						current_state = &state_h;
+						strcpy(parameters, "FFGLHGFJDGJDBHIBAFGABBKKJFIGLG");
 					}
-					strcat(current_game_moves, parameters);
-					move_number++;
+					int moves = strlen(parameters)/2;
+					for (int imove = 0 ; imove < moves ; imove++)
+					{
+						char smove[4];
+						smove[0] = parameters[2*imove];
+						smove[1] = parameters[2*imove+1];
+						smove[2] = 0;
+						int slot = parse_slot(&board, smove);
+						if (orientation == 'H')
+						{
+							move(&board, &state_h, &state_v, slot, orientation);
+							orientation = 'V';
+							current_state = &state_v;
+						}
+						else
+						{
+							move(&board, &state_v, &state_h, slot, orientation);
+							orientation = 'H';
+							current_state = &state_h;
+						}
+						strcat(current_game_moves, smove);
+						move_number++;
+					}
 				}
 				else if (strcmp("eval", action) == 0)
 				{
@@ -158,7 +178,7 @@ TRACK zemoves[256];
 						ld = lambda_decay;
 					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, 0.0, false);
 				}
-				else if (strcmp("evalm", action) == 0)
+				else if (strcmp("tracks", action) == 0)
 				{
 					if (strlen(parameters) > 0)
 						ld = atof(parameters);
@@ -166,7 +186,7 @@ TRACK zemoves[256];
 						ld = lambda_decay;
 					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, 0.0, true);
 				}
-				else if (strcmp("next_moves", action) == 0)
+				else if (strcmp("moves", action) == 0)
 				{
 					if (strlen(parameters) > 0)
 						od = atof(parameters);
@@ -219,9 +239,9 @@ TRACK zemoves[256];
 							double dvalue = atof(pvalue);
 							int ivalue = atoi(pvalue);
 							bool bp = true;
-							if (strcmp(parameters, "lambda_decay") == 0) lambda_decay = dvalue;
-							else if (strcmp(parameters, "opponent_decay") == 0) opponent_decay = dvalue;
-							else if (strcmp(parameters, "max_moves") == 0) max_moves = ivalue;
+							if (strcmp(parameters, "ld") == 0) lambda_decay = dvalue;
+							else if (strcmp(parameters, "od") == 0) opponent_decay = dvalue;
+							else if (strcmp(parameters, "moves") == 0) max_moves = ivalue;
 							else bp = false;
 							if (bp) printf("parameter %s set to %6.3f\n", parameters, dvalue);
 						}
@@ -235,8 +255,8 @@ TRACK zemoves[256];
 				}
 				else if (strcmp("position", action) == 0)
 				{
-					printf("current_game_moves = %s\n", current_game_moves);
-
+					printf("moves = %s  (%ld)\n", current_game_moves, strlen(current_game_moves)/2);
+					printf("trait = %c\n", orientation);
 				}
 				else if (strcmp("slot", action) == 0)
 				{
@@ -250,17 +270,35 @@ TRACK zemoves[256];
 				}
 				else if (strcmp("lambda", action) == 0)
 				{
-					for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
+					if (strlen(parameters) > 0)
 					{
+						bool bh = (parameters[1] == 'H');
+						bool bv = (parameters[1] == 'V');
+						parameters[1] = 0;
+						int il = atoi(parameters);
+						for (int s = 0 ; s < board.slots ; s++)
+						{
+							if (bh && current_state->horizontal.lambda[il].slot[s] > 0)
+								printf("%3d/%s %6d\n", s, board.slot[s].code, current_state->horizontal.lambda[il].slot[s]);
+							else if (bv && current_state->vertical.lambda[il].slot[s] > 0)
+								printf("%3d/%s %6d\n", s, board.slot[s].code, current_state->vertical.lambda[il].slot[s]);
+						}
+					}
+					else
+					{
+						for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
+						{
 if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertical.lambda[lambda].waves > 0)
-	printf("lambda %02d:  [%6.4f] x  %6.2f %%  (%8d+%8d+%8d)    [%6.4f] x  %6.2f %%  (%8d+%8d+%8d)\n",
+	printf("lambda %02d:  [%6.4f] x  %6.2f %%  (%8d+%8d+%8d)    [%6.4f] x  %6.2f %%  (%8d+%8d+%8d)  : %02d\n",
 		lambda,
 		current_state->horizontal.lambda[lambda].weight,
 		current_state->horizontal.lambda[lambda].score, current_state->horizontal.lambda[lambda].waves,
 		current_state->horizontal.lambda[lambda].pegs, current_state->horizontal.lambda[lambda].links,
 		current_state->vertical.lambda[lambda].weight,
 		current_state->vertical.lambda[lambda].score, current_state->vertical.lambda[lambda].waves,
-		current_state->vertical.lambda[lambda].pegs, current_state->vertical.lambda[lambda].links);
+		current_state->vertical.lambda[lambda].pegs, current_state->vertical.lambda[lambda].links,
+		lambda);
+						}
 					}
 				}
 				else if (strcmp("reset", action) == 0)

@@ -2,10 +2,11 @@
 
 #include "board.h"
 
-
 // ------------
 // DYNAMIC PLAY
 // ------------
+
+extern bool	debug_state;
 
 typedef struct
 {
@@ -24,6 +25,7 @@ typedef struct
 int		waves;
 unsigned int	pegs, links, spread;
 unsigned int	slot[NB_MAX_SLOTS];
+//unsigned int	step[NB_MAX_STEPS];
 double		score, weight;
 } LAMBDA;
 

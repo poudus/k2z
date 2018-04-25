@@ -10,6 +10,8 @@
 
 #include "state.h"
 
+bool	debug_state = false;
+
 double score(unsigned int ui1, unsigned int ui2)
 {
 unsigned int sum = ui1 + ui2;
@@ -227,32 +229,56 @@ void my_vpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 }
 void op_hpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
+int	nb = 0;
+
 	for (int h = 0 ; h < board->slot[slot].hpaths ; h++)
+	{
 		wave[board->slot[slot].hpath[h]].status = 'X';
+		nb++;
+	}
+	if (debug_state) printf("slot[%3d] = %6d hx\n", slot, nb);
 }
 void op_vpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
+int	nb = 0;
+
 	for (int v = 0 ; v < board->slot[slot].vpaths ; v++)
+	{
 		wave[board->slot[slot].vpath[v]].status = 'X';
+		nb++;
+	}
+	if (debug_state) printf("slot[%3d] = %6d vx\n", slot, nb);
 }
 
 void cut_hlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 {
+int	nb = 0;
+
 	for (int c = 0 ; c < board->step[step].cuts ; c++)
 	{
 		int sc = board->step[step].cut[c];
 		for (int s = 0 ; s < board->step[sc].hpaths ; s++)
+		{
 			wave[board->step[sc].hpath[s]].status = 'X';
+			nb++;
+		}
 	}
+	if (debug_state) printf("step[%3d] = %6d hx\n", step, nb);
 }
 void cut_vlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 {
+int	nb = 0;
+
 	for (int c = 0 ; c < board->step[step].cuts ; c++)
 	{
 		int sc = board->step[step].cut[c];
 		for (int s = 0 ; s < board->step[sc].vpaths ; s++)
+		{
 			wave[board->step[sc].vpath[s]].status = 'X';
+			nb++;
+		}
 	}
+	if (debug_state) printf("step[%3d] = %6d vx\n", step, nb);
 }
 
 void my_hlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
