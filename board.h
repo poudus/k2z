@@ -29,9 +29,9 @@ unsigned int	*hpath, *vpath, hpaths, vpaths;
 
 typedef struct
 {
-unsigned short	from, to, idx, cuts, sx, sy, sign;
+unsigned short	from, to, idx, cuts, sx, sy, sign, xmin, xmax, ymin, ymax;
 unsigned short	cut[10];
-char		code[4];
+char		code[8];
 unsigned int	*hpath, *vpath, hpaths, vpaths;
 } STEP;
 
@@ -60,6 +60,7 @@ GRID		horizontal, vertical;
 
 void printSlot(SLOT *pslot);
 void printStep(STEP *pstep);
+void traceStep(BOARD *board, int step);
 int find_slot(BOARD *board, char *pslot);
 
 unsigned long init_board(BOARD *board, int width, int height, int depth, int min_direction);

@@ -22,14 +22,14 @@ unsigned int sum = ui1 + ui2;
 		return 50.0;
 }
 
-double score_lambda(LAMBDA *l1, LAMBDA *l2, double weight_pegs, double weight_links, double weight_spread)
+double score_lambda(LAMBDA *l1, LAMBDA *l2, double weight_pegs, double weight_links, double weight_weakness)
 {
-double weight = 1.0 + fabs(weight_pegs) + fabs(weight_links) + fabs(weight_spread), sum_score = 0.0;
+double weight = 1.0 + fabs(weight_pegs) + fabs(weight_links) + fabs(weight_weakness), sum_score = 0.0;
 
 	sum_score = score(l1->waves, l2->waves);
 	sum_score += weight_pegs * score(l1->pegs, l2->pegs);
 	sum_score += weight_links * score(l1->links, l2->links);
-	sum_score += weight_spread * score(l1->spread, l2->spread);
+	sum_score += weight_weakness * score(l1->weakness, l2->weakness);
 
 	l1->score = sum_score / weight;
 	l2->score = 100.0 - l1->score;
@@ -50,7 +50,7 @@ int lambda = 0;
 
 			field->lambda[lambda].pegs += field->wave[w].pegs;
 			field->lambda[lambda].links += field->wave[w].links;
-			field->lambda[lambda].spread += field->wave[w].spread;
+			field->lambda[lambda].weakness += field->wave[w].weakness;
 
 			field->lambda[lambda].waves++;
 
@@ -64,7 +64,7 @@ int lambda = 0;
 }
 
 double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_decay,
-			double weight_pegs, double weight_links, double weight_spread)
+			double weight_pegs, double weight_links, double weight_weakness)
 {
 double	sum_weight = 0.0, sum_p = 0.0, lambda_weight = 1.0;
 	
@@ -72,7 +72,7 @@ double	sum_weight = 0.0, sum_p = 0.0, lambda_weight = 1.0;
 	{
 		if (player->lambda[lambda].waves > 0 || opponent->lambda[lambda].waves > 0)
 		{
-			sum_p += lambda_weight * score_lambda(&player->lambda[lambda], &opponent->lambda[lambda], weight_pegs, weight_links, weight_spread);
+			sum_p += lambda_weight * score_lambda(&player->lambda[lambda], &opponent->lambda[lambda], weight_pegs, weight_links, weight_weakness);
 			player->lambda[lambda].weight = opponent->lambda[lambda].weight = lambda_weight;    
 			sum_weight += lambda_weight;
 			lambda_weight *= lambda_decay;
@@ -175,7 +175,7 @@ long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths)
 		state->horizontal.wave[w].status = ' ';
 		state->horizontal.wave[w].pegs = 0;
 		state->horizontal.wave[w].links = 0;
-		state->horizontal.wave[w].spread = 0;
+		state->horizontal.wave[w].weakness = 0;
 	}
 	state->vertical.waves = vpaths;
 	state->vertical.wave = malloc(vpaths * sizeof(WAVE));
@@ -184,7 +184,7 @@ long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths)
 		state->vertical.wave[w].status = ' ';
 		state->vertical.wave[w].pegs = 0;
 		state->vertical.wave[w].links = 0;
-		state->vertical.wave[w].spread = 0;
+		state->vertical.wave[w].weakness = 0;
 	}
 	state->horizontal.pegs = state->horizontal.links = 0;
 	state->vertical.pegs = state->vertical.links = 0;
@@ -217,39 +217,52 @@ void clone_state(STATE *from, STATE *to)
 	for (int il = 0 ; il < from->vertical.links ; il++)
 		to->vertical.link[il] = from->vertical.link[il];
 }
+
+//
+//	Increment my peg count of all horizontal paths for a given slot
+//
 void my_hpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
 	for (int h = 0 ; h < board->slot[slot].hpaths ; h++)
 		wave[board->slot[slot].hpath[h]].pegs++;
 }
+
+//
+//	Increment my peg count of all vertical paths for a given slot
+//
 void my_vpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
 	for (int v = 0 ; v < board->slot[slot].vpaths ; v++)
 		wave[board->slot[slot].vpath[v]].pegs++;
 }
+
+//
+//	CUT all opponent horizontal paths for a given slot
+//
 void op_hpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
-int	nb = 0;
-
 	for (int h = 0 ; h < board->slot[slot].hpaths ; h++)
 	{
 		wave[board->slot[slot].hpath[h]].status = 'X';
-		nb++;
 	}
-	if (debug_state) printf("slot[%3d] = %6d hx\n", slot, nb);
+	if (debug_state) printf("slot[%4d     ] = %8d hx\n", slot, board->slot[slot].hpaths);
 }
+
+//
+//	CUT all opponent vertical paths for a given slot
+//
 void op_vpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
-int	nb = 0;
-
 	for (int v = 0 ; v < board->slot[slot].vpaths ; v++)
 	{
 		wave[board->slot[slot].vpath[v]].status = 'X';
-		nb++;
 	}
-	if (debug_state) printf("slot[%3d] = %6d vx\n", slot, nb);
+	if (debug_state) printf("slot[%4d     ] = %8d vx\n", slot, board->slot[slot].vpaths);
 }
 
+//
+//	CUT all horizontal paths for a given step
+//
 void cut_hlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 {
 int	nb = 0;
@@ -257,14 +270,19 @@ int	nb = 0;
 	for (int c = 0 ; c < board->step[step].cuts ; c++)
 	{
 		int sc = board->step[step].cut[c];
+		if (debug_state) printf("xcut[%4d/%4s] = %8d hx\n", sc, board->step[sc].code, board->step[sc].hpaths);
 		for (int s = 0 ; s < board->step[sc].hpaths ; s++)
 		{
 			wave[board->step[sc].hpath[s]].status = 'X';
 			nb++;
 		}
 	}
-	if (debug_state) printf("step[%3d] = %6d hx\n", step, nb);
+	if (debug_state) printf("step[%4d     ] = %8d hx  %2d cuts\n", step, nb, board->step[step].cuts);
 }
+
+//
+//	CUT all vertical paths for a given step
+//
 void cut_vlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 {
 int	nb = 0;
@@ -272,13 +290,14 @@ int	nb = 0;
 	for (int c = 0 ; c < board->step[step].cuts ; c++)
 	{
 		int sc = board->step[step].cut[c];
+		if (debug_state) printf("xcut[%4d/%4s] = %8d vx\n", sc, board->step[sc].code, board->step[sc].vpaths);
 		for (int s = 0 ; s < board->step[sc].vpaths ; s++)
 		{
 			wave[board->step[sc].vpath[s]].status = 'X';
 			nb++;
 		}
 	}
-	if (debug_state) printf("step[%3d] = %6d vx\n", step, nb);
+	if (debug_state) printf("step[%4d     ] = %8d vx  %2d cuts\n", step, nb, board->step[step].cuts);
 }
 
 void my_hlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
@@ -294,8 +313,8 @@ void my_vlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 
 int state_move(BOARD *board, STATE *state, MOVE *move)
 {
-	int hlinks = state->horizontal.links;
-	int vlinks = state->vertical.links;
+	//int hlinks = state->horizontal.links;
+	//int vlinks = state->vertical.links;
 
 	if (move->orientation == 'H')
 	{
@@ -345,7 +364,7 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 		my_hpeg(board, move->slot, state->horizontal.wave, state->horizontal.waves);
 		op_hpeg(board, move->slot, state->vertical.wave, state->vertical.waves);
 
-		for (int hs = hlinks ; hs < state->horizontal.links ; hs++)
+		for (int hs = 0 ; hs < state->horizontal.links ; hs++) // hlinks
 		{
 			my_hlink(board, state->horizontal.link[hs], state->horizontal.wave, state->horizontal.waves);
 		}
@@ -398,17 +417,17 @@ printf("debug.move: vertical link created = %d, sn = %d\n", ln, sn);
 		my_vpeg(board, move->slot, state->vertical.wave, state->vertical.waves);
 		op_vpeg(board, move->slot, state->horizontal.wave, state->horizontal.waves);
 
-		for (int vs = vlinks ; vs < state->vertical.links ; vs++)
+		for (int vs = 0 ; vs < state->vertical.links ; vs++) // vlinks
 		{
 			my_vlink(board, state->vertical.link[vs], state->vertical.wave, state->vertical.waves);
 		}
 	}
-	for (int hs = hlinks ; hs < state->horizontal.links ; hs++)
+	for (int hs = 0 ; hs < state->horizontal.links ; hs++) // hlinks
 	{
 		cut_hlink(board, state->horizontal.link[hs], state->horizontal.wave, state->horizontal.waves);
 		cut_vlink(board, state->horizontal.link[hs], state->vertical.wave, state->vertical.waves);
 	}
-	for (int vs = vlinks ; vs < state->vertical.links ; vs++)
+	for (int vs = 0 ; vs < state->vertical.links ; vs++) // vlinks
 	{
 		cut_hlink(board, state->vertical.link[vs], state->horizontal.wave, state->horizontal.waves);
 		cut_vlink(board, state->vertical.link[vs], state->vertical.wave, state->vertical.waves);

@@ -266,7 +266,7 @@ TRACK zemoves[256];
 				else if (strcmp("step", action) == 0)
 				{
 					int step = atoi(parameters);
-					printStep(&board.step[step]);
+					traceStep(&board, step);
 				}
 				else if (strcmp("lambda", action) == 0)
 				{
@@ -289,14 +289,13 @@ TRACK zemoves[256];
 						for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
 						{
 if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertical.lambda[lambda].waves > 0)
-	printf("lambda %02d:  [%6.4f] x  %6.2f %%  (%8d+%8d+%8d)    [%6.4f] x  %6.2f %%  (%8d+%8d+%8d)  : %02d\n",
+	printf("lambda %02d:  [%6.4f] x    %6.2f %%  = (%8d+%8d+%8d-%8d)   /  %6.2f %%  = (%8d+%8d+%8d-%8d)  : %02d\n",
 		lambda,
 		current_state->horizontal.lambda[lambda].weight,
 		current_state->horizontal.lambda[lambda].score, current_state->horizontal.lambda[lambda].waves,
-		current_state->horizontal.lambda[lambda].pegs, current_state->horizontal.lambda[lambda].links,
-		current_state->vertical.lambda[lambda].weight,
+		current_state->horizontal.lambda[lambda].pegs, current_state->horizontal.lambda[lambda].links, current_state->horizontal.lambda[lambda].weakness,
 		current_state->vertical.lambda[lambda].score, current_state->vertical.lambda[lambda].waves,
-		current_state->vertical.lambda[lambda].pegs, current_state->vertical.lambda[lambda].links,
+		current_state->vertical.lambda[lambda].pegs, current_state->vertical.lambda[lambda].links, current_state->vertical.lambda[lambda].weakness,
 		lambda);
 						}
 					}

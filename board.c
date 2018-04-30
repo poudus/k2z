@@ -61,6 +61,24 @@ char cuts[64], buf[16];
 		pstep->from, pstep->to, pstep->cuts, cuts);
 }
 
+void traceStep(BOARD *board, int step)
+{
+char cuts[128], buf[32];
+STEP *pstep = &board->step[step];
+
+	cuts[0] = 0;
+	for (int n = 0 ; n < pstep->cuts ; n++)
+	{
+		if (n == 0)
+			sprintf(buf, "%d/%s", pstep->cut[n], board->step[pstep->cut[n]].code);
+		else
+			sprintf(buf, ", %d/%s", pstep->cut[n], board->step[pstep->cut[n]].code);
+		strcat(cuts, buf);
+	}
+	printf("step %d/%s : %d cut {%s}\n",
+		pstep->idx, pstep->code, pstep->cuts, cuts);
+}
+
 void free_board(BOARD *board)
 {
 	for (int slot = 0 ; slot < board->slots ; slot++)
@@ -231,6 +249,10 @@ search_path_h(board, sn, board->slot[slot].link[n], depth+1, slots, pslot, steps
 	}
 }
 
+bool isInPerimeter(STEP *pstep, int sx, int sy)
+{
+	return sx >= 2*pstep->xmin && sx <= 2*pstep->xmax && sy >= 2*pstep->ymin && sy <= 2*pstep->ymax;
+}
 
 unsigned long init_board(BOARD *board, int width, int height, int depth, int min_direction)
 {
@@ -303,6 +325,28 @@ unsigned long init_board(BOARD *board, int width, int height, int depth, int min
 				sprintf(board->step[board->steps].code, "%c%c%c%c",
 					'A'+board->slot[s1].x, 'A'+board->slot[s1].y,
 					'A'+board->slot[s2].x, 'A'+board->slot[s2].y);
+
+				if (board->slot[s1].x < board->slot[s2].x)
+				{
+					board->step[board->steps].xmin = board->slot[s1].x;
+					board->step[board->steps].xmax = board->slot[s2].x;
+				}
+				else
+				{
+					board->step[board->steps].xmin = board->slot[s2].x;
+					board->step[board->steps].xmax = board->slot[s1].x;
+				}
+				if (board->slot[s1].y < board->slot[s2].y)
+				{
+					board->step[board->steps].ymin = board->slot[s1].y;
+					board->step[board->steps].ymax = board->slot[s2].y;
+				}
+				else
+				{
+					board->step[board->steps].ymin = board->slot[s2].y;
+					board->step[board->steps].ymax = board->slot[s1].y;
+				}
+
 				board->steps++;
 			}
 		}
@@ -315,9 +359,9 @@ unsigned long init_board(BOARD *board, int width, int height, int depth, int min
 	}
 	printf("debug.max_neighbors = %d\n", max_neighbors);
 	// cuts
-	for (int s1 = 0 ; s1 < board->steps -1; s1++)
+	for (int s1 = 0 ; s1 < board->steps - 1; s1++)
 	{
-		for (int s2 = 0 ; s2 < board->steps ; s2++)
+		for (int s2 = s1 + 1 ; s2 < board->steps ; s2++)
 		{
 			if (s1 != s2)
 			{
@@ -325,21 +369,29 @@ int sqd = (board->step[s1].sx - board->step[s2].sx) * (board->step[s1].sx - boar
 sqd += (board->step[s1].sy - board->step[s2].sy) * (board->step[s1].sy - board->step[s2].sy);
 
 				if (
-					((sqd == 4 || sqd == 0) && board->step[s1].sign != board->step[s2].sign) ||
+					(sqd == 0 && board->step[s1].sign != board->step[s2].sign)
+					||
+					(sqd == 4 &&
+						isInPerimeter(&board->step[s1], board->step[s2].sx, board->step[s2].sy) &&
+						isInPerimeter(&board->step[s2], board->step[s1].sx, board->step[s1].sy) &&
+						board->step[s1].sign != board->step[s2].sign)
+					||
 					(sqd == 2 &&
 						(board->step[s1].sign == 1 &&
-			((board->step[s2].sx == board->step[s1].sx+1 && board->step[s2].sy == board->step[s1].sy+1) ||
-			(board->step[s2].sx == board->step[s1].sx-1 && board->step[s2].sy == board->step[s1].sy-1))
+			((board->step[s2].sx == (board->step[s1].sx+1) && board->step[s2].sy == (board->step[s1].sy+1)) ||
+			(board->step[s2].sx == (board->step[s1].sx-1) && board->step[s2].sy == (board->step[s1].sy-1)))
 						) ||
 						(board->step[s1].sign == 2 &&
-			((board->step[s2].sx == board->step[s1].sx+1 && board->step[s2].sy == board->step[s1].sy-1) ||
-			(board->step[s2].sx == board->step[s1].sx-1 && board->step[s2].sy == board->step[s1].sy+1))
+			((board->step[s2].sx == (board->step[s1].sx+1) && board->step[s2].sy == (board->step[s1].sy-1)) ||
+			(board->step[s2].sx == (board->step[s1].sx-1) && board->step[s2].sy == (board->step[s1].sy+1)))
 						)
 					)
 				    )
 				{
 					board->step[s1].cut[board->step[s1].cuts] = s2;
 					board->step[s1].cuts++;
+					board->step[s2].cut[board->step[s2].cuts] = s1;
+					board->step[s2].cuts++;
 				}
 			}
 		}

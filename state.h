@@ -10,7 +10,7 @@ extern bool	debug_state;
 
 typedef struct
 {
-unsigned char	status, pegs, links, spread;
+unsigned char	status, pegs, links, weakness;
 } WAVE;
 
 
@@ -23,7 +23,7 @@ double		value, weight;
 typedef struct
 {
 int		waves;
-unsigned int	pegs, links, spread;
+unsigned int	pegs, links, weakness;
 unsigned int	slot[NB_MAX_SLOTS];
 //unsigned int	step[NB_MAX_STEPS];
 double		score, weight;
