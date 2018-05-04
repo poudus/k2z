@@ -254,6 +254,17 @@ bool isInPerimeter(STEP *pstep, int sx, int sy)
 	return sx >= 2*pstep->xmin && sx <= 2*pstep->xmax && sy >= 2*pstep->ymin && sy <= 2*pstep->ymax;
 }
 
+int minPegDistance(STEP *pstep, int sx, int sy)
+{
+	int min_peg_distance = (sx - 2*pstep->xmin)*(sx - 2*pstep->xmin) + (sy - 2*pstep->ymin)*(sy - 2*pstep->ymin);
+	int max_peg_distance = (sx - 2*pstep->xmax)*(sx - 2*pstep->xmax) + (sy - 2*pstep->ymax)*(sy - 2*pstep->ymax);
+
+	if (min_peg_distance < max_peg_distance)
+		return min_peg_distance;
+	else
+		return max_peg_distance;
+}
+
 unsigned long init_board(BOARD *board, int width, int height, int depth, int min_direction)
 {
 	bzero(board, sizeof(BOARD));
@@ -377,15 +388,18 @@ sqd += (board->step[s1].sy - board->step[s2].sy) * (board->step[s1].sy - board->
 						board->step[s1].sign != board->step[s2].sign)
 					||
 					(sqd == 2 &&
-						(board->step[s1].sign == 1 &&
+						((minPegDistance(&board->step[s1], board->step[s2].sx, board->step[s2].sy) == 1 &&
+						minPegDistance(&board->step[s2], board->step[s1].sx, board->step[s1].sy) == 1)
+						||
+						board->step[s1].sign == board->step[s2].sign))
+						/*(board->step[s1].sign == 1 &&
 			((board->step[s2].sx == (board->step[s1].sx+1) && board->step[s2].sy == (board->step[s1].sy+1)) ||
 			(board->step[s2].sx == (board->step[s1].sx-1) && board->step[s2].sy == (board->step[s1].sy-1)))
 						) ||
 						(board->step[s1].sign == 2 &&
 			((board->step[s2].sx == (board->step[s1].sx+1) && board->step[s2].sy == (board->step[s1].sy-1)) ||
 			(board->step[s2].sx == (board->step[s1].sx-1) && board->step[s2].sy == (board->step[s1].sy+1)))
-						)
-					)
+						)*/
 				    )
 				{
 					board->step[s1].cut[board->step[s1].cuts] = s2;

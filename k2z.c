@@ -144,7 +144,8 @@ TRACK zemoves[256];
 				{
 					if (strcmp("default", action) == 0)
 					{
-						strcpy(parameters, "FFGLHGFJDGJDBHIBAFGABBKKJFIGLG");
+						//strcpy(parameters, "FFGLHGFJDGJDBHIBAFGABBKKJFIGLG");
+						strcpy(parameters, "FFFJHGGHJFGADGGCBFGLAH");
 					}
 					int moves = strlen(parameters)/2;
 					for (int imove = 0 ; imove < moves ; imove++)

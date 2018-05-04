@@ -7,8 +7,8 @@
 #include <sys/time.h>
 #include <math.h>
 
-
 #include "state.h"
+
 
 bool	debug_state = false;
 
