@@ -44,15 +44,11 @@ struct timeval t0, t_end;
 }
 
 void eval_orientation(BOARD *board, STATE *state, char orientation, double lambda_decay,
-		double weight_pegs, double weight_links, double weight_spread, bool btracks)
+		double w1, double w2, bool btracks)
 {
 struct timeval t0, t_end, t_lambda_field;
 FIELD *player = NULL, *opponent = NULL;
 
-	gettimeofday(&t0, NULL);
-	lambda_field(&board->horizontal, &state->horizontal, btracks);
-	lambda_field(&board->vertical, &state->vertical, btracks);
-	gettimeofday(&t_lambda_field, NULL);
 	if (orientation == 'H')
 	{
 		player = &state->horizontal;
@@ -63,7 +59,12 @@ FIELD *player = NULL, *opponent = NULL;
 		player = &state->vertical;
 		opponent = &state->horizontal;
 	}
-	double score = eval_state(board, player, opponent, lambda_decay, weight_pegs, weight_links, weight_spread);
+
+	gettimeofday(&t0, NULL);
+	lambda_field(board, &board->horizontal, &state->horizontal, btracks, true);
+	lambda_field(board, &board->vertical, &state->vertical, btracks, false);
+	gettimeofday(&t_lambda_field, NULL);
+	double score = eval_state(board, player, opponent, lambda_decay, w1, w2);
 
 	if (btracks) build_state_tracks(board, state);
 
@@ -131,6 +132,7 @@ TRACK zemoves[256];
 			if (strlen(command) > 0)
 			{
 				sscanf(command, "%s %s", action, parameters);
+				int len_parameter = strlen(parameters);
 				if (strcmp("quit", action) == 0 || strcmp("exit", action) == 0)
 					break;
 				else if (strcmp("debug", action) == 0)
@@ -145,7 +147,7 @@ TRACK zemoves[256];
 					if (strcmp("default", action) == 0)
 					{
 						//strcpy(parameters, "FFGLHGFJDGJDBHIBAFGABBKKJFIGLG");
-						strcpy(parameters, "FFFJHGGHJFGADGGCBFGLAH");
+						strcpy(parameters, "FFFJHGGHJFGADGIBBFGLAH");
 					}
 					int moves = strlen(parameters)/2;
 					for (int imove = 0 ; imove < moves ; imove++)
@@ -177,7 +179,7 @@ TRACK zemoves[256];
 						ld = atof(parameters);
 					else
 						ld = lambda_decay;
-					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, 0.0, false);
+					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, false);
 				}
 				else if (strcmp("tracks", action) == 0)
 				{
@@ -185,7 +187,7 @@ TRACK zemoves[256];
 						ld = atof(parameters);
 					else
 						ld = lambda_decay;
-					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, 0.0, true);
+					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, true);
 				}
 				else if (strcmp("moves", action) == 0)
 				{
@@ -199,7 +201,7 @@ TRACK zemoves[256];
 				}
 				else if (strcmp("play", action) == 0)
 				{
-					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, 0.0, true);
+					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, true);
 					int nb_moves = state_moves(&board, current_state, orientation, od, &zemoves[0]);
 					int idx_move = rand() % max_moves;
 					TRACK *pmove = &zemoves[idx_move];
@@ -219,7 +221,7 @@ TRACK zemoves[256];
 					move_number++;
 
 					printf("move %d/%d/%s played\n", idx_move, pmove->idx, board.slot[pmove->idx].code);
-					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, 0.0, false);
+					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, false);
 				}
 				else if (strcmp("parameter", action) == 0)
 				{
@@ -262,12 +264,12 @@ TRACK zemoves[256];
 				else if (strcmp("slot", action) == 0)
 				{
 					int slot = parse_slot(&board, parameters);
-					printSlot(&board.slot[slot]);
+					printSlot(&board, &board.slot[slot]);
 				}
 				else if (strcmp("step", action) == 0)
 				{
 					int step = atoi(parameters);
-					traceStep(&board, step);
+					printStep(&board, step);
 				}
 				else if (strcmp("lambda", action) == 0)
 				{
@@ -280,9 +282,16 @@ TRACK zemoves[256];
 						for (int s = 0 ; s < board.slots ; s++)
 						{
 							if (bh && current_state->horizontal.lambda[il].slot[s] > 0)
-								printf("%3d/%s %6d\n", s, board.slot[s].code, current_state->horizontal.lambda[il].slot[s]);
+								printf("%3d/%4s %6d\n", s, board.slot[s].code, current_state->horizontal.lambda[il].slot[s]);
 							else if (bv && current_state->vertical.lambda[il].slot[s] > 0)
-								printf("%3d/%s %6d\n", s, board.slot[s].code, current_state->vertical.lambda[il].slot[s]);
+								printf("%3d/%4s %6d\n", s, board.slot[s].code, current_state->vertical.lambda[il].slot[s]);
+						}
+						for (int s = 0 ; s < board.steps ; s++)
+						{
+							if (bh && current_state->horizontal.lambda[il].step[s] > 0)
+								printf("%3d/%4s %6d\n", s, board.step[s].code, current_state->horizontal.lambda[il].step[s]);
+							else if (bv && current_state->vertical.lambda[il].step[s] > 0)
+								printf("%3d/%4s %6d\n", s, board.step[s].code, current_state->vertical.lambda[il].step[s]);
 						}
 					}
 					else
@@ -300,6 +309,25 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 		lambda);
 						}
 					}
+				}
+				else if (strcmp("path", action) == 0 && len_parameter >= 2)
+				{
+					bool bh = (parameters[len_parameter-1] == 'H');
+					bool bv = (parameters[len_parameter-1] == 'V');
+					parameters[len_parameter-1] = 0;
+					int ipath = atoi(parameters);
+
+					if (bh)
+						printPath(&board, &board.horizontal.path[ipath]);
+					else if (bv)
+						printPath(&board, &board.vertical.path[ipath]);
+				}
+				else if (strcmp("paths", action) == 0 && len_parameter >= 2)
+				{
+					bool bh = (parameters[len_parameter-1] == 'H');
+					bool bv = (parameters[len_parameter-1] == 'V');
+					parameters[len_parameter-1] = 0;
+					int lpath = atoi(parameters);
 				}
 				else if (strcmp("reset", action) == 0)
 				{

@@ -25,6 +25,7 @@ char		code[4];
 unsigned short	idx, neighbors;
 unsigned short	neighbor[8], link[8];
 unsigned int	*hpath, *vpath, hpaths, vpaths;
+unsigned char	*hrank, *vrank;
 } SLOT;
 
 typedef struct
@@ -33,6 +34,7 @@ unsigned short	from, to, idx, cuts, sx, sy, sign, xmin, xmax, ymin, ymax;
 unsigned short	cut[10];
 char		code[8];
 unsigned int	*hpath, *vpath, hpaths, vpaths;
+unsigned char	*hrank, *vrank;
 } STEP;
 
 typedef struct
@@ -46,7 +48,6 @@ typedef struct
 {
 unsigned int	paths;
 PATH		*path;
-//LPATH		lpath[16];
 } GRID;
 
 typedef struct
@@ -58,9 +59,10 @@ GRID		horizontal, vertical;
 } BOARD;
 
 
-void printSlot(SLOT *pslot);
-void printStep(STEP *pstep);
-void traceStep(BOARD *board, int step);
+void printSlot(BOARD *board, SLOT *pslot);
+void debugStep(STEP *pstep);
+void printStep(BOARD *board, int step);
+void printPath(BOARD *board, PATH *path);
 int find_slot(BOARD *board, char *pslot);
 
 unsigned long init_board(BOARD *board, int width, int height, int depth, int min_direction);

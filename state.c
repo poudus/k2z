@@ -22,14 +22,13 @@ unsigned int sum = ui1 + ui2;
 		return 50.0;
 }
 
-double score_lambda(LAMBDA *l1, LAMBDA *l2, double weight_pegs, double weight_links, double weight_weakness)
+double score_lambda(LAMBDA *l1, LAMBDA *l2, double w1, double w2)
 {
-double weight = 1.0 + fabs(weight_pegs) + fabs(weight_links) + fabs(weight_weakness), sum_score = 0.0;
+double weight = 1.0 + fabs(w1) + fabs(w2), sum_score = 0.0;
 
 	sum_score = score(l1->waves, l2->waves);
-	sum_score += weight_pegs * score(l1->pegs, l2->pegs);
-	sum_score += weight_links * score(l1->links, l2->links);
-	sum_score += weight_weakness * score(l1->weakness, l2->weakness);
+	//sum_score += w1 * score(l1->p1, l2->p1);
+	//sum_score += w2 * score(l1->p2, l2->p2);
 
 	l1->score = sum_score / weight;
 	l2->score = 100.0 - l1->score;
@@ -37,7 +36,7 @@ double weight = 1.0 + fabs(weight_pegs) + fabs(weight_links) + fabs(weight_weakn
 	return l1->score;
 }
 
-void lambda_field(GRID *grid, FIELD *field, bool init_slots)
+void lambda_field(BOARD *board, GRID *grid, FIELD *field, bool init_tracks, bool bh)
 {
 int lambda = 0;
 
@@ -54,17 +53,36 @@ int lambda = 0;
 
 			field->lambda[lambda].waves++;
 
-			if (init_slots)
+			if (init_tracks)
 			{
 				for (int s = 0 ; s < grid->path[w].slots ; s++)
-					field->lambda[lambda].slot[grid->path[w].slot[s]]++;
+				{
+					int rank= 0;
+					if (bh)
+						rank = board->slot[grid->path[w].slot[s]].hrank[s];
+					else
+						rank = board->slot[grid->path[w].slot[s]].vrank[s];
+
+					if (field->wave[w].slot[rank] == ' ')
+						field->lambda[lambda].slot[grid->path[w].slot[s]]++;
+				}
+				for (int s = 0 ; s < grid->path[w].steps ; s++)
+				{
+					int rank= 0;
+					if (bh)
+						rank = board->step[grid->path[w].step[s]].hrank[s];
+					else
+						rank = board->step[grid->path[w].step[s]].vrank[s];
+
+					if (field->wave[w].step[rank] == ' ')
+						field->lambda[lambda].step[grid->path[w].step[s]]++;
+				}
 			}
 		}
 	}
 }
 
-double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_decay,
-			double weight_pegs, double weight_links, double weight_weakness)
+double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_decay, double w1, double w2)
 {
 double	sum_weight = 0.0, sum_p = 0.0, lambda_weight = 1.0;
 	
@@ -72,7 +90,7 @@ double	sum_weight = 0.0, sum_p = 0.0, lambda_weight = 1.0;
 	{
 		if (player->lambda[lambda].waves > 0 || opponent->lambda[lambda].waves > 0)
 		{
-			sum_p += lambda_weight * score_lambda(&player->lambda[lambda], &opponent->lambda[lambda], weight_pegs, weight_links, weight_weakness);
+			sum_p += lambda_weight * score_lambda(&player->lambda[lambda], &opponent->lambda[lambda], w1, w2);
 			player->lambda[lambda].weight = opponent->lambda[lambda].weight = lambda_weight;    
 			sum_weight += lambda_weight;
 			lambda_weight *= lambda_decay;
@@ -176,6 +194,8 @@ long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths)
 		state->horizontal.wave[w].pegs = 0;
 		state->horizontal.wave[w].links = 0;
 		state->horizontal.wave[w].weakness = 0;
+		memcpy(&state->horizontal.wave[w].slot, "                ", 16);
+		memcpy(&state->horizontal.wave[w].step, "                ", 16);
 	}
 	state->vertical.waves = vpaths;
 	state->vertical.wave = malloc(vpaths * sizeof(WAVE));
@@ -185,6 +205,8 @@ long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths)
 		state->vertical.wave[w].pegs = 0;
 		state->vertical.wave[w].links = 0;
 		state->vertical.wave[w].weakness = 0;
+		memcpy(&state->vertical.wave[w].slot, "                ", 16);
+		memcpy(&state->vertical.wave[w].step, "                ", 16);
 	}
 	state->horizontal.pegs = state->horizontal.links = 0;
 	state->vertical.pegs = state->vertical.links = 0;
@@ -224,7 +246,10 @@ void clone_state(STATE *from, STATE *to)
 void my_hpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
 	for (int h = 0 ; h < board->slot[slot].hpaths ; h++)
+	{
 		wave[board->slot[slot].hpath[h]].pegs++;
+		wave[board->slot[slot].hpath[h]].slot[board->slot[slot].hrank[h]] = 'X';
+	}
 }
 
 //
@@ -233,7 +258,10 @@ void my_hpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 void my_vpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
 	for (int v = 0 ; v < board->slot[slot].vpaths ; v++)
+	{
 		wave[board->slot[slot].vpath[v]].pegs++;
+		wave[board->slot[slot].vpath[v]].slot[board->slot[slot].vrank[v]] = 'X';
+	}
 }
 
 //
@@ -245,7 +273,7 @@ void op_hpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 	{
 		wave[board->slot[slot].hpath[h]].status = 'X';
 	}
-	if (debug_state) printf("slot[%4d     ] = %8d hx\n", slot, board->slot[slot].hpaths);
+	if (debug_state) printf("slot[%4d     ] = %8d vx\n", slot, board->slot[slot].hpaths);
 }
 
 //
@@ -257,7 +285,7 @@ void op_vpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 	{
 		wave[board->slot[slot].vpath[v]].status = 'X';
 	}
-	if (debug_state) printf("slot[%4d     ] = %8d vx\n", slot, board->slot[slot].vpaths);
+	if (debug_state) printf("slot[%4d     ] = %8d hx\n", slot, board->slot[slot].vpaths);
 }
 
 //
@@ -303,12 +331,18 @@ int	nb = 0;
 void my_hlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 {
 	for (int h = 0 ; h < board->step[step].hpaths ; h++)
+	{
 		wave[board->step[step].hpath[h]].links++;
+		wave[board->step[step].hpath[h]].step[board->step[step].hrank[h]] = 'X';
+	}
 }
 void my_vlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 {
 	for (int v = 0 ; v < board->step[step].vpaths ; v++)
+	{
 		wave[board->step[step].vpath[v]].links++;
+		wave[board->step[step].vpath[v]].step[board->step[step].vrank[v]] = 'X';
+	}
 }
 
 int state_move(BOARD *board, STATE *state, MOVE *move)

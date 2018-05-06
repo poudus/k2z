@@ -11,6 +11,7 @@ extern bool	debug_state;
 typedef struct
 {
 unsigned char	status, pegs, links, weakness;
+unsigned char	slot[16], step[16];
 } WAVE;
 
 
@@ -25,7 +26,7 @@ typedef struct
 int		waves;
 unsigned int	pegs, links, weakness;
 unsigned int	slot[NB_MAX_SLOTS];
-//unsigned int	step[NB_MAX_STEPS];
+unsigned int	step[NB_MAX_STEPS];
 double		score, weight;
 } LAMBDA;
 
@@ -57,10 +58,9 @@ long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths);
 void clone_state(STATE *from, STATE *to);
 int state_move(BOARD *board, STATE *state, MOVE *move);
 void free_state(STATE *state);
-double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_decay,
-			double weight_pegs, double sweight_links, double weight_spread);
+double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_decay, double w1, double w2);
 
-void lambda_field(GRID *grid, FIELD *field, bool init_slots);
+void lambda_field(BOARD *board, GRID *grid, FIELD *field, bool init_slots, bool bh);
 
 void build_field_tracks(BOARD *board, FIELD *player);
 void build_state_tracks(BOARD *board, STATE *state);
