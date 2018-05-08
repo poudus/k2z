@@ -61,6 +61,7 @@ void free_state(STATE *state);
 double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_decay, double w1, double w2);
 
 void lambda_field(BOARD *board, GRID *grid, FIELD *field, bool init_slots, bool bh);
+void printLambdaWave(GRID *grid, FIELD *field, int lambda);
 
 void build_field_tracks(BOARD *board, FIELD *player);
 void build_state_tracks(BOARD *board, STATE *state);

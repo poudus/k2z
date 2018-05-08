@@ -329,6 +329,39 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 					parameters[len_parameter-1] = 0;
 					int lpath = atoi(parameters);
 				}
+				else if (strcmp("wave", action) == 0 && len_parameter >= 2)
+				{
+					bool bh = (parameters[len_parameter-1] == 'H');
+					bool bv = (parameters[len_parameter-1] == 'V');
+					parameters[len_parameter-1] = 0;
+					int iw = atoi(parameters);
+
+					WAVE *pw = NULL;
+					if (bh && iw < current_state->horizontal.waves)
+						pw = &current_state->horizontal.wave[iw];
+					else if (bv && iw < current_state->vertical.waves)
+						pw = &current_state->horizontal.wave[iw];
+
+					char buff1[32], buff2[32];
+					strncpy(buff1, pw->slot, PATH_MAX_LENGTH);
+					strncpy(buff2, pw->step, PATH_MAX_LENGTH);
+					buff1[PATH_MAX_LENGTH] = 0;
+					buff2[PATH_MAX_LENGTH] = 0;
+					printf("%C  %2d  %2d  %2d  [%s]  [%s]\n", pw->status, pw->pegs, pw->links, pw->weakness, buff1, buff2);
+				}
+				else if (strcmp("waves", action) == 0 && len_parameter >= 2)
+				{
+					bool bh = (parameters[len_parameter-1] == 'H');
+					bool bv = (parameters[len_parameter-1] == 'V');
+					parameters[len_parameter-1] = 0;
+					int lw = atoi(parameters);
+
+					if (bh)
+						printLambdaWave(&board.horizontal, &current_state->horizontal, lw);
+					else if (bv)
+						printLambdaWave(&board.vertical, &current_state->vertical, lw);
+
+				}
 				else if (strcmp("reset", action) == 0)
 				{
 					current_state = &state_h;

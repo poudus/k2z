@@ -36,6 +36,19 @@ double weight = 1.0 + fabs(w1) + fabs(w2), sum_score = 0.0;
 	return l1->score;
 }
 
+void printLambdaWave(GRID *grid, FIELD *field, int lambda)
+{
+	for (int w = 0 ; w < field->waves ; w++)
+	{
+		if (field->wave[w].status == ' ')
+		{
+			int ll = grid->path[w].slots - field->wave[w].pegs;
+			if (ll == lambda)
+				printf("%8d:  %2d - %2d\n", w, grid->path[w].slots, field->wave[w].pegs);
+		}
+	}
+}
+
 void lambda_field(BOARD *board, GRID *grid, FIELD *field, bool init_tracks, bool bh)
 {
 int lambda = 0;
@@ -55,28 +68,30 @@ int lambda = 0;
 
 			if (init_tracks)
 			{
+				int pegs = 0;
 				for (int s = 0 ; s < grid->path[w].slots ; s++)
 				{
-					int rank= 0;
-					if (bh)
-						rank = board->slot[grid->path[w].slot[s]].hrank[s];
-					else
-						rank = board->slot[grid->path[w].slot[s]].vrank[s];
-
-					if (field->wave[w].slot[rank] == ' ')
+					if (field->wave[w].slot[s] == ' ')
 						field->lambda[lambda].slot[grid->path[w].slot[s]]++;
+					else if (field->wave[w].slot[s] == 'X')
+						pegs++;
 				}
+				int links = 0;
 				for (int s = 0 ; s < grid->path[w].steps ; s++)
 				{
-					int rank= 0;
-					if (bh)
-						rank = board->step[grid->path[w].step[s]].hrank[s];
-					else
-						rank = board->step[grid->path[w].step[s]].vrank[s];
-
-					if (field->wave[w].step[rank] == ' ')
+					if (field->wave[w].step[s] == ' ')
 						field->lambda[lambda].step[grid->path[w].step[s]]++;
+					else if (field->wave[w].step[s] == 'X')
+						links++;
 				}
+				/*if (pegs != field->wave[w].pegs)
+				{
+					char buff[32];
+					strncpy(buff, field->wave[w].slot, grid->path[w].slots);
+					buff[grid->path[w].slots] = 0;
+					printf("ERROR w = %8d  lambda = %2d  slots = %2d  pegs = %2d   count =%2d  [%s]\n",
+						w, lambda, grid->path[w].slots, field->wave[w].pegs, pegs, buff);
+				}*/
 			}
 		}
 	}
@@ -248,7 +263,10 @@ void my_hpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 	for (int h = 0 ; h < board->slot[slot].hpaths ; h++)
 	{
 		wave[board->slot[slot].hpath[h]].pegs++;
-		wave[board->slot[slot].hpath[h]].slot[board->slot[slot].hrank[h]] = 'X';
+
+		int idx = SearchPathSlot(&board->horizontal.path[h], slot);
+		if (idx >= 0 && idx < PATH_MAX_LENGTH)
+			wave[board->slot[slot].hpath[h]].slot[idx] = 'X';
 	}
 }
 
@@ -260,7 +278,10 @@ void my_vpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 	for (int v = 0 ; v < board->slot[slot].vpaths ; v++)
 	{
 		wave[board->slot[slot].vpath[v]].pegs++;
-		wave[board->slot[slot].vpath[v]].slot[board->slot[slot].vrank[v]] = 'X';
+
+		int idx = SearchPathSlot(&board->vertical.path[v], slot);
+		if (idx >= 0 && idx < PATH_MAX_LENGTH)
+			wave[board->slot[slot].vpath[v]].slot[idx] = 'X';
 	}
 }
 
@@ -333,7 +354,10 @@ void my_hlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 	for (int h = 0 ; h < board->step[step].hpaths ; h++)
 	{
 		wave[board->step[step].hpath[h]].links++;
-		wave[board->step[step].hpath[h]].step[board->step[step].hrank[h]] = 'X';
+
+		int idx = SearchPathStep(&board->horizontal.path[h], step);
+		if (idx >= 0 && idx < PATH_MAX_LENGTH)
+			wave[board->step[step].hpath[h]].step[idx] = 'X';
 	}
 }
 void my_vlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
@@ -341,7 +365,10 @@ void my_vlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 	for (int v = 0 ; v < board->step[step].vpaths ; v++)
 	{
 		wave[board->step[step].vpath[v]].links++;
-		wave[board->step[step].vpath[v]].step[board->step[step].vrank[v]] = 'X';
+
+		int idx = SearchPathStep(&board->vertical.path[v], step);
+		if (idx >= 0 && idx < PATH_MAX_LENGTH)
+			wave[board->step[step].vpath[v]].step[idx] = 'X';
 	}
 }
 
