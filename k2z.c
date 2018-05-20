@@ -61,8 +61,8 @@ FIELD *player = NULL, *opponent = NULL;
 	}
 
 	gettimeofday(&t0, NULL);
-	lambda_field(board, &board->horizontal, &state->horizontal, btracks, true);
-	lambda_field(board, &board->vertical, &state->vertical, btracks, false);
+	lambda_field(board, &board->horizontal, &state->horizontal, btracks);
+	lambda_field(board, &board->vertical, &state->vertical, btracks);
 	gettimeofday(&t_lambda_field, NULL);
 	double score = eval_state(board, player, opponent, lambda_decay, w1, w2);
 
@@ -85,8 +85,8 @@ int parse_slot(BOARD *board, char *pslot)
 //
 int main(int argc, char* argv[])
 {
-int depth = 2, width = 16, height = 16, max_moves = 5;
-double contempt = 10.0, ld, od;
+int depth = 2, width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1;
+double ld, od, dw1 = 0.0, dw2 = 0.0;
 double lambda_decay = 0.8, opponent_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move;
 BOARD board;
@@ -95,21 +95,28 @@ TRACK zemoves[256];
 	printf("K2Z.engine-version=0.1\n");
 	gettimeofday(&t0, NULL);
 	srand(t0.tv_sec);
-	if (argc > 0 && strlen(argv[1]) == 5)
+	if (argc > 1 && strlen(argv[1]) == 5)
 	{
-		char size[8];
-		strcpy(size, argv[1]);
-		size[2] = 0;
-		width = atoi(&size[0]);
-		height = atoi(&size[3]);
+		char lsize[8];
+		strcpy(lsize, argv[1]);
+		lsize[2] = 0;
+		width = atoi(&lsize[0]);
+		height = atoi(&lsize[3]);
 		printf("init.size=%dx%d\n", width, height);
+
+		if (argc > 2)
+		{
+			slambda = atoi(argv[2]);
+			if (argc > 3)
+				sdirection = atoi(argv[3]);
+		}
 	}
 	else
 	{
 		printf("error.invalid-size-parameter\n");
 		return -1;
 	}
-	unsigned long ul_allocated = init_board(&board, width, height, 10, -1);
+	unsigned long ul_allocated = init_board(&board, width, height, slambda, sdirection);
 	if (ul_allocated > 0)
 	{
 		gettimeofday(&t_init_board, NULL);
@@ -119,7 +126,7 @@ TRACK zemoves[256];
 		current_state = &state_h;
 		long size_s0 = init_state(&state_h, board.horizontal.paths, board.vertical.paths);
 		gettimeofday(&t_init_s0, NULL);
-		printf("init.s0     %6.2f ms        size = %4ld MB\n", duration(&t_init_board, &t_init_s0), size_s0 / ONE_MILLION);
+		printf("init.s0    %6.2f ms        size = %4ld MB\n", duration(&t_init_board, &t_init_s0), size_s0 / ONE_MILLION);
 
 		char command[256], action[256], parameters[256], current_game_moves[64], orientation;
 		int move_number = 0;
@@ -179,7 +186,7 @@ TRACK zemoves[256];
 						ld = atof(parameters);
 					else
 						ld = lambda_decay;
-					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, false);
+					eval_orientation(&board, current_state, orientation, ld, dw1, dw2, false);
 				}
 				else if (strcmp("tracks", action) == 0)
 				{
@@ -187,7 +194,7 @@ TRACK zemoves[256];
 						ld = atof(parameters);
 					else
 						ld = lambda_decay;
-					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, true);
+					eval_orientation(&board, current_state, orientation, ld, dw1, dw2, true);
 				}
 				else if (strcmp("moves", action) == 0)
 				{
@@ -201,7 +208,7 @@ TRACK zemoves[256];
 				}
 				else if (strcmp("play", action) == 0)
 				{
-					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, true);
+					eval_orientation(&board, current_state, orientation, ld, dw1, dw2, true);
 					int nb_moves = state_moves(&board, current_state, orientation, od, &zemoves[0]);
 					int idx_move = rand() % max_moves;
 					TRACK *pmove = &zemoves[idx_move];
@@ -221,7 +228,7 @@ TRACK zemoves[256];
 					move_number++;
 
 					printf("move %d/%d/%s played\n", idx_move, pmove->idx, board.slot[pmove->idx].code);
-					eval_orientation(&board, current_state, orientation, ld, 0.0, 0.0, false);
+					eval_orientation(&board, current_state, orientation, ld, dw1, dw2, false);
 				}
 				else if (strcmp("parameter", action) == 0)
 				{
@@ -254,7 +261,9 @@ TRACK zemoves[256];
 				{
 					printf("lambda_decay   = %6.3f\n", lambda_decay);
 					printf("opponent_decay = %6.3f\n", opponent_decay);
-					printf("max_moves      = %3d\n", max_moves);
+					printf("max_moves      =  %d\n", max_moves);
+					printf("dw1            = %6.3f\n", dw1);
+					printf("dw2            = %6.3f\n", dw2);
 				}
 				else if (strcmp("position", action) == 0)
 				{
@@ -322,13 +331,6 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 					else if (bv)
 						printPath(&board, &board.vertical.path[ipath]);
 				}
-				else if (strcmp("paths", action) == 0 && len_parameter >= 2)
-				{
-					bool bh = (parameters[len_parameter-1] == 'H');
-					bool bv = (parameters[len_parameter-1] == 'V');
-					parameters[len_parameter-1] = 0;
-					int lpath = atoi(parameters);
-				}
 				else if (strcmp("wave", action) == 0 && len_parameter >= 2)
 				{
 					bool bh = (parameters[len_parameter-1] == 'H');
@@ -337,17 +339,24 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 					int iw = atoi(parameters);
 
 					WAVE *pw = NULL;
+					PATH *ph = NULL;
 					if (bh && iw < current_state->horizontal.waves)
+					{
 						pw = &current_state->horizontal.wave[iw];
+						ph = &board.horizontal.path[iw];
+					}
 					else if (bv && iw < current_state->vertical.waves)
-						pw = &current_state->horizontal.wave[iw];
+					{
+						pw = &current_state->vertical.wave[iw];
+						ph = &board.vertical.path[iw];
+					}
 
 					char buff1[32], buff2[32];
 					strncpy(buff1, pw->slot, PATH_MAX_LENGTH);
 					strncpy(buff2, pw->step, PATH_MAX_LENGTH);
-					buff1[PATH_MAX_LENGTH] = 0;
-					buff2[PATH_MAX_LENGTH] = 0;
-					printf("%C  %2d  %2d  %2d  [%s]  [%s]\n", pw->status, pw->pegs, pw->links, pw->weakness, buff1, buff2);
+					buff1[ph->slots] = 0;
+					buff2[ph->steps] = 0;
+					printf("s='%C'  p=%d  l=%d  w=%d  slots=[%s]  steps=[%s]\n", pw->status, pw->pegs, pw->links, pw->weakness, buff1, buff2);
 				}
 				else if (strcmp("waves", action) == 0 && len_parameter >= 2)
 				{
@@ -369,6 +378,35 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 					move_number = 0;
 					orientation = 'H';
 					current_game_moves[0] = 0;
+				}
+				else if (strcmp("settings", action) == 0)
+				{
+					printf("max_lambda = %2d\n", slambda);
+					printf("direction  = %2d\n", sdirection);
+				}
+				else if (strcmp("help", action) == 0)
+				{
+					printf("\tmove XY\n");
+					printf("\tplay\n");
+					printf("\teval <lambda-decay>\n");
+					printf("\ttracks <lambda-decay>\n");
+					printf("\tmoves <opponent-decay>\n");
+					printf("\tlambda\n");
+					printf("\tlambda <lambda><H/V>\n");
+					printf("\tposition\n");
+					printf("\tparameters\n");
+					printf("\tpath <pid><H/V>\n");
+					//printf("\tpaths <lambda><H/V>\n");
+					printf("\twave <wid><H/V>\n");
+					printf("\twaves <lambda><H/V>\n");
+					printf("\tslot s\n");
+					printf("\tstep s\n");
+					printf("\tdebug Y/N\n");
+					printf("\tdefault\n");
+					printf("\tsettings\n");
+					printf("\treset\n");
+					printf("\tquit\n");
+					printf("\texit\n");
 				}
 				action[0] = parameters[0] = 0;
 			}

@@ -38,25 +38,34 @@ double weight = 1.0 + fabs(w1) + fabs(w2), sum_score = 0.0;
 
 void printLambdaWave(GRID *grid, FIELD *field, int lambda)
 {
+char buffer1[64], buffer2[64];
+
 	for (int w = 0 ; w < field->waves ; w++)
 	{
-		if (field->wave[w].status == ' ')
+		if (field->wave[w].status == 'O')
 		{
 			int ll = grid->path[w].slots - field->wave[w].pegs;
 			if (ll == lambda)
-				printf("%8d:  %2d - %2d\n", w, grid->path[w].slots, field->wave[w].pegs);
+			{
+				PATH *ph = &grid->path[w];
+				strncpy(buffer1, field->wave[w].slot, 16);
+				buffer1[ph->slots] = 0;
+				strncpy(buffer2, field->wave[w].step, 16);
+				buffer2[ph->steps] = 0;
+				printf("%8d:  %2d - %-2d  [%s]  [%s]\n", w, grid->path[w].slots, field->wave[w].pegs, buffer1, buffer2);
+			}
 		}
 	}
 }
 
-void lambda_field(BOARD *board, GRID *grid, FIELD *field, bool init_tracks, bool bh)
+void lambda_field(BOARD *board, GRID *grid, FIELD *field, bool init_tracks)
 {
 int lambda = 0;
 
 	bzero(&field->lambda[0], PATH_MAX_LENGTH * sizeof(LAMBDA));
 	for (int w = 0 ; w < field->waves ; w++)
 	{
-		if (field->wave[w].status == ' ')
+		if (field->wave[w].status == 'O')
 		{
 			lambda = grid->path[w].slots - field->wave[w].pegs;
 
@@ -71,7 +80,7 @@ int lambda = 0;
 				int pegs = 0;
 				for (int s = 0 ; s < grid->path[w].slots ; s++)
 				{
-					if (field->wave[w].slot[s] == ' ')
+					if (field->wave[w].slot[s] == '.')
 						field->lambda[lambda].slot[grid->path[w].slot[s]]++;
 					else if (field->wave[w].slot[s] == 'X')
 						pegs++;
@@ -79,9 +88,9 @@ int lambda = 0;
 				int links = 0;
 				for (int s = 0 ; s < grid->path[w].steps ; s++)
 				{
-					if (field->wave[w].step[s] == ' ')
+					if (field->wave[w].step[s] == '-')
 						field->lambda[lambda].step[grid->path[w].step[s]]++;
-					else if (field->wave[w].step[s] == 'X')
+					else if (field->wave[w].step[s] == '=')
 						links++;
 				}
 				/*if (pegs != field->wave[w].pegs)
@@ -205,23 +214,23 @@ long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths)
 	state->horizontal.wave = malloc(hpaths * sizeof(WAVE));
 	for (int w = 0 ; w < hpaths ; w++)
 	{
-		state->horizontal.wave[w].status = ' ';
+		state->horizontal.wave[w].status = 'O';
 		state->horizontal.wave[w].pegs = 0;
 		state->horizontal.wave[w].links = 0;
 		state->horizontal.wave[w].weakness = 0;
-		memcpy(&state->horizontal.wave[w].slot, "                ", 16);
-		memcpy(&state->horizontal.wave[w].step, "                ", 16);
+		memcpy(&state->horizontal.wave[w].slot, "................", 16);
+		memcpy(&state->horizontal.wave[w].step, "----------------", 16);
 	}
 	state->vertical.waves = vpaths;
 	state->vertical.wave = malloc(vpaths * sizeof(WAVE));
 	for (int w = 0 ; w < vpaths ; w++)
 	{
-		state->vertical.wave[w].status = ' ';
+		state->vertical.wave[w].status = 'O';
 		state->vertical.wave[w].pegs = 0;
 		state->vertical.wave[w].links = 0;
 		state->vertical.wave[w].weakness = 0;
-		memcpy(&state->vertical.wave[w].slot, "                ", 16);
-		memcpy(&state->vertical.wave[w].step, "                ", 16);
+		memcpy(&state->vertical.wave[w].slot, "................", 16);
+		memcpy(&state->vertical.wave[w].step, "----------------", 16);
 	}
 	state->horizontal.pegs = state->horizontal.links = 0;
 	state->vertical.pegs = state->vertical.links = 0;
@@ -260,14 +269,22 @@ void clone_state(STATE *from, STATE *to)
 //
 void my_hpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
+int hpaths = 0, sx = 0, hp = 0;
+
 	for (int h = 0 ; h < board->slot[slot].hpaths ; h++)
 	{
-		wave[board->slot[slot].hpath[h]].pegs++;
+		hp = board->slot[slot].hpath[h];
+		wave[hp].pegs++;
+		hpaths++;
 
-		int idx = SearchPathSlot(&board->horizontal.path[h], slot);
+		int idx = SearchPathSlot(&board->horizontal.path[hp], slot);
 		if (idx >= 0 && idx < PATH_MAX_LENGTH)
-			wave[board->slot[slot].hpath[h]].slot[idx] = 'X';
+		{
+			wave[hp].slot[idx] = 'X';
+			sx++;
+		}
 	}
+	if (debug_state) printf("slot = %3d  hpaths = %8d  sx = %6d\n", slot, hpaths, sx);
 }
 
 //
@@ -275,14 +292,22 @@ void my_hpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 //
 void my_vpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
+int vpaths = 0, sx = 0, vp = 0;
+
 	for (int v = 0 ; v < board->slot[slot].vpaths ; v++)
 	{
-		wave[board->slot[slot].vpath[v]].pegs++;
+		vp = board->slot[slot].vpath[v];
+		wave[vp].pegs++;
+		vpaths++;
 
-		int idx = SearchPathSlot(&board->vertical.path[v], slot);
+		int idx = SearchPathSlot(&board->vertical.path[vp], slot);
 		if (idx >= 0 && idx < PATH_MAX_LENGTH)
-			wave[board->slot[slot].vpath[v]].slot[idx] = 'X';
+		{
+			wave[vp].slot[idx] = 'X';
+			sx++;
+		}
 	}
+	if (debug_state) printf("slot = %3d  vpaths = %8d  sx = %6d\n", slot, vpaths, sx);
 }
 
 //
@@ -304,7 +329,9 @@ void op_vpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
 	for (int v = 0 ; v < board->slot[slot].vpaths ; v++)
 	{
-		wave[board->slot[slot].vpath[v]].status = 'X';
+		int vp = board->slot[slot].vpath[v];
+		wave[vp].status = 'X';
+		if (debug_state && vp == 42979) printf(" vpath 42979 cut\n");
 	}
 	if (debug_state) printf("slot[%4d     ] = %8d hx\n", slot, board->slot[slot].vpaths);
 }
@@ -351,31 +378,48 @@ int	nb = 0;
 
 void my_hlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 {
+int hlinks = 0, lx = 0, hp = 0;
+
 	for (int h = 0 ; h < board->step[step].hpaths ; h++)
 	{
-		wave[board->step[step].hpath[h]].links++;
+		hp = board->step[step].hpath[h];
+		wave[hp].links++;
+		hlinks++;
 
-		int idx = SearchPathStep(&board->horizontal.path[h], step);
+		int idx = SearchPathStep(&board->horizontal.path[hp], step);
 		if (idx >= 0 && idx < PATH_MAX_LENGTH)
-			wave[board->step[step].hpath[h]].step[idx] = 'X';
+		{
+			wave[hp].step[idx] = '=';
+			lx++;
+		}
 	}
+	if (debug_state) printf("step = %3d  hpaths = %8d  lx = %6d\n", step, hlinks, lx);
 }
+
 void my_vlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 {
+int vlinks = 0, lx = 0, vp = 0;
+
 	for (int v = 0 ; v < board->step[step].vpaths ; v++)
 	{
-		wave[board->step[step].vpath[v]].links++;
+		vp = board->step[step].vpath[v];
+		wave[vp].links++;
+		vlinks++;
 
-		int idx = SearchPathStep(&board->vertical.path[v], step);
+		int idx = SearchPathStep(&board->vertical.path[vp], step);
 		if (idx >= 0 && idx < PATH_MAX_LENGTH)
-			wave[board->step[step].vpath[v]].step[idx] = 'X';
+		{
+			wave[vp].step[idx] = '=';
+			lx++;
+		}
 	}
+	if (debug_state) printf("step = %3d  vpaths = %8d  lx = %6d\n", step, vlinks, lx);
 }
 
 int state_move(BOARD *board, STATE *state, MOVE *move)
 {
-	//int hlinks = state->horizontal.links;
-	//int vlinks = state->vertical.links;
+	int hlinks = state->horizontal.links;
+	int vlinks = state->vertical.links;
 
 	if (move->orientation == 'H')
 	{
@@ -425,7 +469,7 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 		my_hpeg(board, move->slot, state->horizontal.wave, state->horizontal.waves);
 		op_hpeg(board, move->slot, state->vertical.wave, state->vertical.waves);
 
-		for (int hs = 0 ; hs < state->horizontal.links ; hs++) // hlinks
+		for (int hs = hlinks ; hs < state->horizontal.links ; hs++) // hlinks
 		{
 			my_hlink(board, state->horizontal.link[hs], state->horizontal.wave, state->horizontal.waves);
 		}
@@ -478,17 +522,17 @@ printf("debug.move: vertical link created = %d, sn = %d\n", ln, sn);
 		my_vpeg(board, move->slot, state->vertical.wave, state->vertical.waves);
 		op_vpeg(board, move->slot, state->horizontal.wave, state->horizontal.waves);
 
-		for (int vs = 0 ; vs < state->vertical.links ; vs++) // vlinks
+		for (int vs = vlinks ; vs < state->vertical.links ; vs++) // vlinks
 		{
 			my_vlink(board, state->vertical.link[vs], state->vertical.wave, state->vertical.waves);
 		}
 	}
-	for (int hs = 0 ; hs < state->horizontal.links ; hs++) // hlinks
+	for (int hs = hlinks ; hs < state->horizontal.links ; hs++) // hlinks
 	{
 		cut_hlink(board, state->horizontal.link[hs], state->horizontal.wave, state->horizontal.waves);
 		cut_vlink(board, state->horizontal.link[hs], state->vertical.wave, state->vertical.waves);
 	}
-	for (int vs = 0 ; vs < state->vertical.links ; vs++) // vlinks
+	for (int vs = vlinks ; vs < state->vertical.links ; vs++) // vlinks
 	{
 		cut_hlink(board, state->vertical.link[vs], state->horizontal.wave, state->horizontal.waves);
 		cut_vlink(board, state->vertical.link[vs], state->vertical.wave, state->vertical.waves);
@@ -496,12 +540,12 @@ printf("debug.move: vertical link created = %d, sn = %d\n", ln, sn);
 	state->horizontal.count = 0;
 	for (int hw = 0 ; hw < state->horizontal.waves ; hw++)
 	{
-		if (state->horizontal.wave[hw].status == ' ') state->horizontal.count++;
+		if (state->horizontal.wave[hw].status == 'O') state->horizontal.count++;
 	}
 	state->vertical.count = 0;
 	for (int vw = 0 ; vw < state->vertical.waves ; vw++)
 	{
-		if (state->vertical.wave[vw].status == ' ') state->vertical.count++;
+		if (state->vertical.wave[vw].status == 'O') state->vertical.count++;
 	}
 	return state->horizontal.count + state->vertical.count;
 	//return state->horizontal.waves + state->vertical.waves;

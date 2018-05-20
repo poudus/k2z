@@ -28,7 +28,7 @@ int slot = -1;
 
 void printSlot(BOARD *board, SLOT *pslot)
 {
-char neighbors[64], buf[16];
+char neighbors[128], buf[32];
 
 	neighbors[0] = 0;
 	for (int n = 0 ; n < pslot->neighbors ; n++)
@@ -183,15 +183,17 @@ void search_path_v(BOARD *board, int slot, int step, int depth,
 		board->vertical.path[board->vertical.paths].slots = slots;
 		for (int s = 0 ; s < slots ; s++)
 		{
-			int ss = pslot[s];
-			if (ss < 0 || ss >= board->slots)
-				printf("error slot %d %d\n", s, ss);
+			int sslot = pslot[s];
+			if (sslot < 0 || sslot >= board->slots)
+				printf("error slot %d %d\n", s, sslot);
 			else
 			{
-				board->vertical.path[board->vertical.paths].slot[s] = ss;
+				board->vertical.path[board->vertical.paths].slot[s] = sslot;
 				// slots array
-				board->slot[ss].vpath[board->slot[ss].vpaths] = board->vertical.paths;
-				board->slot[ss].vpaths++;
+				board->slot[sslot].vpath[board->slot[sslot].vpaths] = board->vertical.paths;
+				board->slot[sslot].vpaths++;
+				if (board->slot[sslot].vpaths > MAX_PATH_PER_SLOT)
+					printf("error.vpath.slot %d: %d", sslot, board->slot[sslot].vpaths);
 			}
 			gslots++;
 		}
@@ -199,15 +201,17 @@ void search_path_v(BOARD *board, int slot, int step, int depth,
 		board->vertical.path[board->vertical.paths].steps = steps;
 		for (int s = 0 ; s < steps ; s++)
 		{
-			int ss = pstep[s];
-			if (ss < 0 || ss >= board->steps)
-				printf("error step %d %d\n", s, ss);
+			int sstep = pstep[s];
+			if (sstep < 0 || sstep >= board->steps)
+				printf("error step %d %d\n", s, sstep);
 			else
 			{
-				board->vertical.path[board->vertical.paths].step[s] = ss;
+				board->vertical.path[board->vertical.paths].step[s] = sstep;
 				// steps array
-				board->step[ss].vpath[board->step[ss].vpaths] = board->vertical.paths;
-				board->step[ss].vpaths++;
+				board->step[sstep].vpath[board->step[sstep].vpaths] = board->vertical.paths;
+				board->step[sstep].vpaths++;
+				if (board->step[sstep].vpaths > MAX_PATH_PER_STEP)
+					printf("error.vpath.step %d: %d", sstep, board->step[sstep].vpaths);
 			}
 			gsteps++;
 		}
@@ -251,17 +255,17 @@ void search_path_h(BOARD *board, int slot, int step, int depth,
 		board->horizontal.path[board->horizontal.paths].slots = slots;
 		for (int s = 0 ; s < slots ; s++)
 		{
-			int ss = pslot[s];
-			if (ss < 0 || ss >= board->slots)
-				printf("error slot %d %d\n", s, ss);
+			int sslot = pslot[s];
+			if (sslot < 0 || sslot >= board->slots)
+				printf("error slot %d %d\n", s, sslot);
 			else
 			{
-				board->horizontal.path[board->horizontal.paths].slot[s] = ss;
+				board->horizontal.path[board->horizontal.paths].slot[s] = sslot;
 				// slots array
-				board->slot[ss].hpath[board->slot[ss].hpaths] = board->horizontal.paths;
-				board->slot[ss].hpaths++;
-				if (board->slot[ss].hpaths > MAX_PATH_PER_SLOT)
-					printf("error.hpath.slot %d", board->slot[ss].hpaths);
+				board->slot[sslot].hpath[board->slot[sslot].hpaths] = board->horizontal.paths;
+				board->slot[sslot].hpaths++;
+				if (board->slot[sslot].hpaths > MAX_PATH_PER_SLOT)
+					printf("error.hpath.slot %d: %d", sslot, board->slot[sslot].hpaths);
 			}
 			gslots++;
 		}
@@ -269,17 +273,17 @@ void search_path_h(BOARD *board, int slot, int step, int depth,
 		board->horizontal.path[board->horizontal.paths].steps = steps;
 		for (int s = 0 ; s < steps ; s++)
 		{
-			int ss = pstep[s];
-			if (ss < 0 || ss >= board->steps)
-				printf("error step %d %d\n", s, ss);
+			int sstep = pstep[s];
+			if (sstep < 0 || sstep >= board->steps)
+				printf("error step %d %d\n", s, sstep);
 			else
 			{
-				board->horizontal.path[board->horizontal.paths].step[s] = ss;
+				board->horizontal.path[board->horizontal.paths].step[s] = sstep;
 				// steps array
-				board->step[ss].hpath[board->step[ss].hpaths] = board->horizontal.paths;
-				board->step[ss].hpaths++;
-				if (board->step[ss].hpaths > MAX_PATH_PER_STEP)
-					printf("error.hpath.step %d", board->step[ss].hpaths);
+				board->step[sstep].hpath[board->step[sstep].hpaths] = board->horizontal.paths;
+				board->step[sstep].hpaths++;
+				if (board->step[sstep].hpaths > MAX_PATH_PER_STEP)
+					printf("error.hpath.step %d: %d", sstep, board->step[sstep].hpaths);
 			}
 			gsteps++;
 		}
@@ -312,13 +316,13 @@ bool isInPerimeter(STEP *pstep, int sx, int sy)
 
 int minPegDistance(STEP *pstep, int sx, int sy)
 {
-	int min_peg_distance = (sx - 2*pstep->xmin)*(sx - 2*pstep->xmin) + (sy - 2*pstep->ymin)*(sy - 2*pstep->ymin);
-	int max_peg_distance = (sx - 2*pstep->xmax)*(sx - 2*pstep->xmax) + (sy - 2*pstep->ymax)*(sy - 2*pstep->ymax);
+	int sqd1 = (sx - 2*pstep->x1)*(sx - 2*pstep->x1) + (sy - 2*pstep->y1)*(sy - 2*pstep->y1);
+	int sqd2 = (sx - 2*pstep->x2)*(sx - 2*pstep->x2) + (sy - 2*pstep->y2)*(sy - 2*pstep->y2);
 
-	if (min_peg_distance < max_peg_distance)
-		return min_peg_distance;
+	if (sqd1 < sqd2)
+		return sqd1;
 	else
-		return max_peg_distance;
+		return sqd2;
 }
 
 unsigned long init_board(BOARD *board, int width, int height, int depth, int min_direction)
@@ -413,6 +417,10 @@ unsigned long init_board(BOARD *board, int width, int height, int depth, int min
 					board->step[board->steps].ymin = board->slot[s2].y;
 					board->step[board->steps].ymax = board->slot[s1].y;
 				}
+				board->step[board->steps].x1 = board->slot[s1].x;
+				board->step[board->steps].x2 = board->slot[s2].x;
+				board->step[board->steps].y1 = board->slot[s1].y;
+				board->step[board->steps].y2 = board->slot[s2].y;
 
 				board->steps++;
 			}
@@ -434,6 +442,8 @@ unsigned long init_board(BOARD *board, int width, int height, int depth, int min
 			{
 int sqd = (board->step[s1].sx - board->step[s2].sx) * (board->step[s1].sx - board->step[s2].sx);
 sqd += (board->step[s1].sy - board->step[s2].sy) * (board->step[s1].sy - board->step[s2].sy);
+int mpd1 = minPegDistance(&board->step[s1], board->step[s2].sx, board->step[s2].sy);
+int mpd2 = minPegDistance(&board->step[s2], board->step[s1].sx, board->step[s1].sy);
 
 				if (
 					(sqd == 0 && board->step[s1].sign != board->step[s2].sign)
@@ -441,23 +451,20 @@ sqd += (board->step[s1].sy - board->step[s2].sy) * (board->step[s1].sy - board->
 					(sqd == 4 &&
 						isInPerimeter(&board->step[s1], board->step[s2].sx, board->step[s2].sy) &&
 						isInPerimeter(&board->step[s2], board->step[s1].sx, board->step[s1].sy) &&
-						board->step[s1].sign != board->step[s2].sign)
+						board->step[s1].sign != board->step[s2].sign
+					)
 					||
-					(sqd == 2 &&
-						((minPegDistance(&board->step[s1], board->step[s2].sx, board->step[s2].sy) == 1 &&
-						minPegDistance(&board->step[s2], board->step[s1].sx, board->step[s1].sy) == 1)
-						||
-						board->step[s1].sign == board->step[s2].sign))
-						/*(board->step[s1].sign == 1 &&
-			((board->step[s2].sx == (board->step[s1].sx+1) && board->step[s2].sy == (board->step[s1].sy+1)) ||
-			(board->step[s2].sx == (board->step[s1].sx-1) && board->step[s2].sy == (board->step[s1].sy-1)))
-						) ||
-						(board->step[s1].sign == 2 &&
-			((board->step[s2].sx == (board->step[s1].sx+1) && board->step[s2].sy == (board->step[s1].sy-1)) ||
-			(board->step[s2].sx == (board->step[s1].sx-1) && board->step[s2].sy == (board->step[s1].sy+1)))
-						)*/
+					(sqd == 2 && ((mpd1 == 1 && mpd2 == 1) || board->step[s1].sign != board->step[s2].sign)
+					)
 				    )
 				{
+/*if (s1 == 311 && s2 == 313)
+{
+printf("sqd = %d  mpd1 = %d  mpd2 = %d  sign1 = %d  sign2 = %d\n", sqd, mpd1, mpd2, board->step[s1].sign, board->step[s2].sign);
+printf("s1x = %d  s1y = %d   s2x = %d  s2y = %d\n", board->step[s1].sx, board->step[s1].sy, board->step[s2].sx, board->step[s2].sy);
+printf("xmin1 = %d  xmax1 = %d   ymin1 = %d  ymax1 = %d\n", board->step[s1].xmin, board->step[s1].xmax, board->step[s1].ymin, board->step[s1].ymax);
+printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin, board->step[s2].xmax, board->step[s2].ymin, board->step[s2].ymax);
+}*/
 					board->step[s1].cut[board->step[s1].cuts] = s2;
 					board->step[s1].cuts++;
 					board->step[s2].cut[board->step[s2].cuts] = s1;
@@ -466,6 +473,13 @@ sqd += (board->step[s1].sy - board->step[s2].sy) * (board->step[s1].sy - board->
 			}
 		}
 	}
+
+	/*printf("mpd1  = %d\n", mpd1);
+	printf("mpd5  = %d\n", mpd5);
+	printf("mpd9  = %d\n", mpd9);
+	printf("mpd13 = %d\n", mpd13);
+	printf("mpdx  = %d\n", mpdx);*/
+
 	int max_cuts = 0, sign = 0, sx = 0, sy = 0;
 	for (int s = 0 ; s < board->steps ; s++)
 	{
@@ -494,7 +508,7 @@ sqd += (board->step[s1].sy - board->step[s2].sy) * (board->step[s1].sy - board->
 	for (int s = 0 ; s < board->slots ; s++)
 	{
 		if (board->slot[s].x == 0)
-			search_path_h(board, s, -1, 0, 0, slots, 0, steps, depth, min_direction);
+			search_path_h(board, s, -1, 0, 0, slots, 0, steps, depth-1, min_direction);
 	}
 	printf("debug.horizontal_paths  = %10d             gslots = %10d  size = %ld MB\n",
 			board->horizontal.paths, gslots, size_hpaths/ONE_MILLION);
@@ -549,7 +563,7 @@ sqd += (board->step[s1].sy - board->step[s2].sy) * (board->step[s1].sy - board->
 	for (int s = 0 ; s < board->slots ; s++)
 	{
 		if (board->slot[s].y == 0)
-			search_path_v(board, s, -1, 0, 0, slots, 0, steps, depth, min_direction);
+			search_path_v(board, s, -1, 0, 0, slots, 0, steps, depth-1, min_direction);
 	}
 	printf("debug.vertical_paths    = %10d             gslots = %10d  size = %ld MB\n",
 			board->vertical.paths, gslots, size_vpaths/ONE_MILLION);

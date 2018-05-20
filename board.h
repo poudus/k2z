@@ -30,7 +30,7 @@ unsigned int	*hpath, *vpath, hpaths, vpaths;
 
 typedef struct
 {
-unsigned short	from, to, idx, cuts, sx, sy, sign, xmin, xmax, ymin, ymax;
+unsigned short	from, to, idx, cuts, sx, sy, sign, xmin, xmax, ymin, ymax, x1, y1, x2, y2;
 unsigned short	cut[10];
 char		code[8];
 unsigned int	*hpath, *vpath, hpaths, vpaths;
