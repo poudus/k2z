@@ -27,7 +27,8 @@ int move(BOARD *board, STATE *state_from, STATE *state_to, unsigned short slot, 
 struct timeval t0, t_end;
 
 	gettimeofday(&t0, NULL);
-	clone_state(state_from, state_to);
+	//free_state(state_to);
+	clone_state(state_from, state_to, false);
 	//printf("init.clone  %6.2f ms\n", duration(&t_init_s0, &t_clone));
 
 	MOVE move;
@@ -44,7 +45,7 @@ struct timeval t0, t_end;
 }
 
 void eval_orientation(BOARD *board, STATE *state, char orientation, double lambda_decay,
-		double w1, double w2, bool btracks)
+		double wpegs, double wlinks, double wzeta, bool btracks)
 {
 struct timeval t0, t_end, t_lambda_field;
 FIELD *player = NULL, *opponent = NULL;
@@ -64,7 +65,7 @@ FIELD *player = NULL, *opponent = NULL;
 	lambda_field(board, &board->horizontal, &state->horizontal, btracks);
 	lambda_field(board, &board->vertical, &state->vertical, btracks);
 	gettimeofday(&t_lambda_field, NULL);
-	double score = eval_state(board, player, opponent, lambda_decay, w1, w2);
+	double score = eval_state(board, player, opponent, lambda_decay, wpegs, wlinks, wzeta);
 
 	if (btracks) build_state_tracks(board, state);
 
@@ -86,9 +87,9 @@ int parse_slot(BOARD *board, char *pslot)
 int main(int argc, char* argv[])
 {
 int depth = 2, width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1;
-double ld, od, dw1 = 0.0, dw2 = 0.0;
+double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
 double lambda_decay = 0.8, opponent_decay = 0.8;
-struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move;
+struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game;
 BOARD board;
 TRACK zemoves[256];
 
@@ -124,7 +125,8 @@ TRACK zemoves[256];
 
 		STATE state_h, state_v, *current_state;
 		current_state = &state_h;
-		long size_s0 = init_state(&state_h, board.horizontal.paths, board.vertical.paths);
+		long size_s0 = init_state(&state_h, board.horizontal.paths, board.vertical.paths, true);
+		init_state(&state_v, board.horizontal.paths, board.vertical.paths, true);
 		gettimeofday(&t_init_s0, NULL);
 		printf("init.s0    %6.2f ms        size = %4ld MB\n", duration(&t_init_board, &t_init_s0), size_s0 / ONE_MILLION);
 
@@ -182,34 +184,31 @@ TRACK zemoves[256];
 				}
 				else if (strcmp("eval", action) == 0)
 				{
+					int ld = lambda_decay;
 					if (strlen(parameters) > 0)
 						ld = atof(parameters);
-					else
-						ld = lambda_decay;
-					eval_orientation(&board, current_state, orientation, ld, dw1, dw2, false);
+					eval_orientation(&board, current_state, orientation, ld, wpegs, wlinks, wzeta, false);
 				}
 				else if (strcmp("tracks", action) == 0)
 				{
+					int ld = lambda_decay;
 					if (strlen(parameters) > 0)
 						ld = atof(parameters);
-					else
-						ld = lambda_decay;
-					eval_orientation(&board, current_state, orientation, ld, dw1, dw2, true);
+					eval_orientation(&board, current_state, orientation, ld, wpegs, wlinks, wzeta, true);
 				}
 				else if (strcmp("moves", action) == 0)
 				{
+					int od = opponent_decay;
 					if (strlen(parameters) > 0)
 						od = atof(parameters);
-					else
-						od = opponent_decay;
 					int nb_moves = state_moves(&board, current_state, orientation, od, &zemoves[0]);
 					for (int m = 0 ; m < max_moves ; m++)
 					printf("%03d: %3d/%s  %6.2f %%\n", m, zemoves[m].idx, board.slot[zemoves[m].idx].code, zemoves[m].weight);
 				}
 				else if (strcmp("play", action) == 0)
 				{
-					eval_orientation(&board, current_state, orientation, ld, dw1, dw2, true);
-					int nb_moves = state_moves(&board, current_state, orientation, od, &zemoves[0]);
+					eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, true);
+					int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
 					int idx_move = rand() % max_moves;
 					TRACK *pmove = &zemoves[idx_move];
 					if (orientation == 'H')
@@ -226,9 +225,74 @@ TRACK zemoves[256];
 					}
 					strcat(current_game_moves, board.slot[pmove->idx].code);
 					move_number++;
-
-					printf("move %d/%d/%s played\n", idx_move, pmove->idx, board.slot[pmove->idx].code);
-					eval_orientation(&board, current_state, orientation, ld, dw1, dw2, false);
+					printf("move %d: [%d] %d/%s played\n", move_number, idx_move, pmove->idx, board.slot[pmove->idx].code);
+					eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+				}
+				else if (strcmp("game", action) == 0)
+				{
+					bool end_of_game = false;
+					char winner = ' ';
+					gettimeofday(&t0_game, NULL);
+					while (!end_of_game)
+					{
+						eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, true);
+						if (orientation == 'H')
+						{
+							if (empty_field(&state_h.horizontal))
+							{
+								printf("H empty\n");
+								winner = 'V';
+								end_of_game = true;
+							}
+							else if (empty_field(&state_h.horizontal))
+							{
+								printf("H winning\n");
+								winner = 'H';
+								end_of_game = true;
+							}
+						}
+						else
+						{
+							if (empty_field(&state_v.vertical))
+							{
+								printf("V empty\n");
+								winner = 'H';
+								end_of_game = true;
+							}
+							else if (empty_field(&state_v.vertical))
+							{
+								printf("V winning\n");
+								winner = 'V';
+								end_of_game = true;
+							}
+						}
+						if (!end_of_game)
+						{
+							int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
+							int idx_move = rand() % max_moves;
+							TRACK *pmove = &zemoves[idx_move];
+							if (orientation == 'H')
+							{
+								move(&board, &state_h, &state_v, pmove->idx, orientation);
+								orientation = 'V';
+								current_state = &state_v;
+							}
+							else
+							{
+								move(&board, &state_v, &state_h, pmove->idx, orientation);
+								orientation = 'H';
+								current_state = &state_h;
+							}
+							strcat(current_game_moves, board.slot[pmove->idx].code);
+							move_number++;
+							printf("move %d: [%d] %d/%s played\n", move_number, idx_move, pmove->idx, board.slot[pmove->idx].code);
+							eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+							printf("---------- next move %c ----------\n", orientation);
+						}
+					}
+					gettimeofday(&tend_game, NULL);
+printf("========== winner %c in %d moves : %s  duration = %5.2f s  average = %5.1f ms/move\n",
+	winner, move_number, current_game_moves, duration(&t0_game, &tend_game)/1000, duration(&t0_game, &tend_game)/move_number);
 				}
 				else if (strcmp("parameter", action) == 0)
 				{
@@ -259,11 +323,12 @@ TRACK zemoves[256];
 				}
 				else if (strcmp("parameters", action) == 0)
 				{
-					printf("lambda_decay   = %6.3f\n", lambda_decay);
-					printf("opponent_decay = %6.3f\n", opponent_decay);
-					printf("max_moves      =  %d\n", max_moves);
-					printf("dw1            = %6.3f\n", dw1);
-					printf("dw2            = %6.3f\n", dw2);
+					printf("lambda_decay = %6.3f\n", lambda_decay);
+					printf("opp_decay    = %6.3f\n", opponent_decay);
+					printf("max_moves    =  %d\n", max_moves);
+					printf("wpegs        = %6.3f\n", wpegs);
+					printf("wlinks       = %6.3f\n", wlinks);
+					printf("wzeta        = %6.3f\n", wzeta);
 				}
 				else if (strcmp("position", action) == 0)
 				{
@@ -312,9 +377,9 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 		lambda,
 		current_state->horizontal.lambda[lambda].weight,
 		current_state->horizontal.lambda[lambda].score, current_state->horizontal.lambda[lambda].waves,
-		current_state->horizontal.lambda[lambda].pegs, current_state->horizontal.lambda[lambda].links, current_state->horizontal.lambda[lambda].weakness,
+		current_state->horizontal.lambda[lambda].pegs, current_state->horizontal.lambda[lambda].links, current_state->horizontal.lambda[lambda].zeta,
 		current_state->vertical.lambda[lambda].score, current_state->vertical.lambda[lambda].waves,
-		current_state->vertical.lambda[lambda].pegs, current_state->vertical.lambda[lambda].links, current_state->vertical.lambda[lambda].weakness,
+		current_state->vertical.lambda[lambda].pegs, current_state->vertical.lambda[lambda].links, current_state->vertical.lambda[lambda].zeta,
 		lambda);
 						}
 					}
@@ -356,7 +421,7 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 					strncpy(buff2, pw->step, PATH_MAX_LENGTH);
 					buff1[ph->slots] = 0;
 					buff2[ph->steps] = 0;
-					printf("s='%C'  p=%d  l=%d  w=%d  slots=[%s]  steps=[%s]\n", pw->status, pw->pegs, pw->links, pw->weakness, buff1, buff2);
+					printf("s='%C'  p=%d  l=%d  z=%d  slots=[%s]  steps=[%s]\n", pw->status, pw->pegs, pw->links, pw->zeta, buff1, buff2);
 				}
 				else if (strcmp("waves", action) == 0 && len_parameter >= 2)
 				{
@@ -374,15 +439,23 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 				else if (strcmp("reset", action) == 0)
 				{
 					current_state = &state_h;
-					init_state(&state_h, board.horizontal.paths, board.vertical.paths);
+					init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
+					init_state(&state_v, board.horizontal.paths, board.vertical.paths, false);
 					move_number = 0;
 					orientation = 'H';
 					current_game_moves[0] = 0;
+					lambda_field(&board, &board.horizontal, &state_h.horizontal, false);
+					lambda_field(&board, &board.vertical, &state_h.vertical, false);
+					lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
+					lambda_field(&board, &board.vertical, &state_v.vertical, false);
 				}
 				else if (strcmp("settings", action) == 0)
 				{
-					printf("max_lambda = %2d\n", slambda);
-					printf("direction  = %2d\n", sdirection);
+					printf("size         = %dx%d\n", width, height);
+					printf("max_lambda   = %2d\n", slambda);
+					printf("direction    = %2d\n", sdirection);
+					printf("hpaths       = %2d\n", board.horizontal.paths);
+					printf("vpaths       = %2d\n", board.vertical.paths);
 				}
 				else if (strcmp("help", action) == 0)
 				{

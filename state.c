@@ -22,13 +22,14 @@ unsigned int sum = ui1 + ui2;
 		return 50.0;
 }
 
-double score_lambda(LAMBDA *l1, LAMBDA *l2, double w1, double w2)
+double score_lambda(LAMBDA *l1, LAMBDA *l2, double wpegs, double wlinks, double wzeta)
 {
-double weight = 1.0 + fabs(w1) + fabs(w2), sum_score = 0.0;
+double weight = 1.0 + fabs(wpegs) + fabs(wlinks) + fabs(wzeta), sum_score = 0.0;
 
 	sum_score = score(l1->waves, l2->waves);
-	//sum_score += w1 * score(l1->p1, l2->p1);
-	//sum_score += w2 * score(l1->p2, l2->p2);
+	sum_score += wpegs * score(l1->pegs, l2->pegs);
+	sum_score += wlinks * score(l1->links, l2->links);
+	sum_score += wzeta * score(l1->zeta, l2->zeta);
 
 	l1->score = sum_score / weight;
 	l2->score = 100.0 - l1->score;
@@ -71,7 +72,7 @@ int lambda = 0;
 
 			field->lambda[lambda].pegs += field->wave[w].pegs;
 			field->lambda[lambda].links += field->wave[w].links;
-			field->lambda[lambda].weakness += field->wave[w].weakness;
+			field->lambda[lambda].zeta += field->wave[w].zeta;
 
 			field->lambda[lambda].waves++;
 
@@ -106,7 +107,16 @@ int lambda = 0;
 	}
 }
 
-double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_decay, double w1, double w2)
+bool winning_field(FIELD *pfield)
+{
+	return pfield->lambda[0].waves > 0;
+}
+bool empty_field(FIELD *pfield)
+{
+	return pfield->count == 0;
+}
+
+double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_decay, double wpegs, double wlinks, double wzeta)
 {
 double	sum_weight = 0.0, sum_p = 0.0, lambda_weight = 1.0;
 	
@@ -114,12 +124,12 @@ double	sum_weight = 0.0, sum_p = 0.0, lambda_weight = 1.0;
 	{
 		if (player->lambda[lambda].waves > 0 || opponent->lambda[lambda].waves > 0)
 		{
-			sum_p += lambda_weight * score_lambda(&player->lambda[lambda], &opponent->lambda[lambda], w1, w2);
+			sum_p += lambda_weight * score_lambda(&player->lambda[lambda], &opponent->lambda[lambda], wpegs, wlinks, wzeta);
 			player->lambda[lambda].weight = opponent->lambda[lambda].weight = lambda_weight;    
 			sum_weight += lambda_weight;
 			lambda_weight *= lambda_decay;
-			//printf("L = %2d  sum_p = %6.2f  lw = %6.2f  sw = %6.2f  ld = %6.2f\n", lambda, sum_p, lambda_weight, sum_weight, lambda_decay);
-		} //else printf("no-waves\n");
+//printf("L = %2d  sum_p = %6.2f  lw = %6.2f  sw = %6.2f  ld = %6.2f\n", lambda, sum_p, lambda_weight, sum_weight, lambda_decay);
+		}
 	}
 	return sum_p / sum_weight;
 }
@@ -208,27 +218,27 @@ int	moves = 0;
 }
 
 // Q
-long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths)
+long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths, bool alloc_wave)
 {
-	state->horizontal.waves = hpaths;
-	state->horizontal.wave = malloc(hpaths * sizeof(WAVE));
+	state->horizontal.waves = state->horizontal.count = hpaths;
+	if (alloc_wave) state->horizontal.wave = malloc(hpaths * sizeof(WAVE));
 	for (int w = 0 ; w < hpaths ; w++)
 	{
 		state->horizontal.wave[w].status = 'O';
 		state->horizontal.wave[w].pegs = 0;
 		state->horizontal.wave[w].links = 0;
-		state->horizontal.wave[w].weakness = 0;
+		state->horizontal.wave[w].zeta = 0;
 		memcpy(&state->horizontal.wave[w].slot, "................", 16);
 		memcpy(&state->horizontal.wave[w].step, "----------------", 16);
 	}
-	state->vertical.waves = vpaths;
-	state->vertical.wave = malloc(vpaths * sizeof(WAVE));
+	state->vertical.waves = state->vertical.count = vpaths;
+	if (alloc_wave) state->vertical.wave = malloc(vpaths * sizeof(WAVE));
 	for (int w = 0 ; w < vpaths ; w++)
 	{
 		state->vertical.wave[w].status = 'O';
 		state->vertical.wave[w].pegs = 0;
 		state->vertical.wave[w].links = 0;
-		state->vertical.wave[w].weakness = 0;
+		state->vertical.wave[w].zeta = 0;
 		memcpy(&state->vertical.wave[w].slot, "................", 16);
 		memcpy(&state->vertical.wave[w].step, "----------------", 16);
 	}
@@ -237,15 +247,15 @@ long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths)
 	return (hpaths+vpaths) * sizeof(WAVE);
 }
 
-void clone_state(STATE *from, STATE *to)
+void clone_state(STATE *from, STATE *to, bool alloc_waves)
 {
 	to->horizontal.waves = from->horizontal.waves;
-	to->horizontal.wave = malloc(to->horizontal.waves * sizeof(WAVE));
+	if (alloc_waves) to->horizontal.wave = malloc(to->horizontal.waves * sizeof(WAVE));
 	for (int w = 0 ; w < to->horizontal.waves ; w++)
 		memcpy(&to->horizontal.wave[w], &from->horizontal.wave[w], sizeof(WAVE));
 
 	to->vertical.waves = from->vertical.waves;
-	to->vertical.wave = malloc(to->vertical.waves * sizeof(WAVE));
+	if (alloc_waves) to->vertical.wave = malloc(to->vertical.waves * sizeof(WAVE));
 	for (int w = 0 ; w < to->vertical.waves ; w++)
 		memcpy(&to->vertical.wave[w], &from->vertical.wave[w], sizeof(WAVE));
 
