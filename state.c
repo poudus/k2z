@@ -467,7 +467,7 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 		}
 		state->horizontal.pegs++;
 		my_hpeg(board, move->slot, state->horizontal.wave, state->horizontal.waves);
-		op_hpeg(board, move->slot, state->vertical.wave, state->vertical.waves);
+		op_vpeg(board, move->slot, state->vertical.wave, state->vertical.waves);
 
 		for (int hs = hlinks ; hs < state->horizontal.links ; hs++) // hlinks
 		{
@@ -520,7 +520,7 @@ printf("debug.move: vertical link created = %d, sn = %d\n", ln, sn);
 		}
 		state->vertical.pegs++;
 		my_vpeg(board, move->slot, state->vertical.wave, state->vertical.waves);
-		op_vpeg(board, move->slot, state->horizontal.wave, state->horizontal.waves);
+		op_hpeg(board, move->slot, state->horizontal.wave, state->horizontal.waves);
 
 		for (int vs = vlinks ; vs < state->vertical.links ; vs++) // vlinks
 		{
