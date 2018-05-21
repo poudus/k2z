@@ -44,8 +44,7 @@ struct timeval t0, t_end;
 		state_to->vertical.pegs, state_to->vertical.links, 100.0 * state_to->vertical.count / state_to->vertical.waves);
 }
 
-void eval_orientation(BOARD *board, STATE *state, char orientation, double lambda_decay,
-		double wpegs, double wlinks, double wzeta, bool btracks)
+void eval_orientation(BOARD *board, STATE *state, char orientation, double lambda_decay, double wpegs, double wlinks, double wzeta, bool btracks)
 {
 struct timeval t0, t_end, t_lambda_field;
 FIELD *player = NULL, *opponent = NULL;
@@ -88,7 +87,7 @@ int main(int argc, char* argv[])
 {
 int depth = 2, width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
-double lambda_decay = 0.8, opponent_decay = 0.8;
+double lambda_decay = 0.8, opp_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game;
 BOARD board;
 TRACK zemoves[256];
@@ -184,21 +183,21 @@ TRACK zemoves[256];
 				}
 				else if (strcmp("eval", action) == 0)
 				{
-					int ld = lambda_decay;
+					double ld = lambda_decay;
 					if (strlen(parameters) > 0)
 						ld = atof(parameters);
 					eval_orientation(&board, current_state, orientation, ld, wpegs, wlinks, wzeta, false);
 				}
 				else if (strcmp("tracks", action) == 0)
 				{
-					int ld = lambda_decay;
+					double ld = lambda_decay;
 					if (strlen(parameters) > 0)
 						ld = atof(parameters);
 					eval_orientation(&board, current_state, orientation, ld, wpegs, wlinks, wzeta, true);
 				}
 				else if (strcmp("moves", action) == 0)
 				{
-					int od = opponent_decay;
+					double od = opp_decay;
 					if (strlen(parameters) > 0)
 						od = atof(parameters);
 					int nb_moves = state_moves(&board, current_state, orientation, od, &zemoves[0]);
@@ -208,7 +207,7 @@ TRACK zemoves[256];
 				else if (strcmp("play", action) == 0)
 				{
 					eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, true);
-					int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
+					int nb_moves = state_moves(&board, current_state, orientation, opp_decay, &zemoves[0]);
 					int idx_move = rand() % max_moves;
 					TRACK *pmove = &zemoves[idx_move];
 					if (orientation == 'H')
@@ -268,7 +267,7 @@ TRACK zemoves[256];
 						}
 						if (!end_of_game)
 						{
-							int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
+							int nb_moves = state_moves(&board, current_state, orientation, opp_decay, &zemoves[0]);
 							int idx_move = rand() % max_moves;
 							TRACK *pmove = &zemoves[idx_move];
 							if (orientation == 'H')
@@ -313,9 +312,10 @@ printf("========== winner %c in %d moves : %s  duration = %5.2f s  average = %5.
 							double dvalue = atof(pvalue);
 							int ivalue = atoi(pvalue);
 							bool bp = true;
-							if (strcmp(parameters, "ld") == 0) lambda_decay = dvalue;
-							else if (strcmp(parameters, "od") == 0) opponent_decay = dvalue;
-							else if (strcmp(parameters, "moves") == 0) max_moves = ivalue;
+							if (strcmp(parameters, "lambda_decay") == 0) lambda_decay = dvalue;
+							else if (strcmp(parameters, "opp_decay") == 0) opp_decay = dvalue;
+							else if (strcmp(parameters, "max_moves") == 0) max_moves = ivalue;
+							else if (strcmp(parameters, "wzeta") == 0) wzeta = dvalue;
 							else bp = false;
 							if (bp) printf("parameter %s set to %6.3f\n", parameters, dvalue);
 						}
@@ -324,7 +324,7 @@ printf("========== winner %c in %d moves : %s  duration = %5.2f s  average = %5.
 				else if (strcmp("parameters", action) == 0)
 				{
 					printf("lambda_decay = %6.3f\n", lambda_decay);
-					printf("opp_decay    = %6.3f\n", opponent_decay);
+					printf("opp_decay    = %6.3f\n", opp_decay);
 					printf("max_moves    =  %d\n", max_moves);
 					printf("wpegs        = %6.3f\n", wpegs);
 					printf("wlinks       = %6.3f\n", wlinks);
@@ -449,7 +449,7 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 					lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
 					lambda_field(&board, &board.vertical, &state_v.vertical, false);
 				}
-				else if (strcmp("settings", action) == 0)
+				else if (strcmp("board", action) == 0)
 				{
 					printf("size         = %dx%d\n", width, height);
 					printf("max_lambda   = %2d\n", slambda);
@@ -476,7 +476,7 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 					printf("\tstep s\n");
 					printf("\tdebug Y/N\n");
 					printf("\tdefault\n");
-					printf("\tsettings\n");
+					printf("\tboard\n");
 					printf("\treset\n");
 					printf("\tquit\n");
 					printf("\texit\n");

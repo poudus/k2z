@@ -119,19 +119,23 @@ bool empty_field(FIELD *pfield)
 double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_decay, double wpegs, double wlinks, double wzeta)
 {
 double	sum_weight = 0.0, sum_p = 0.0, lambda_weight = 1.0;
+int lowest_lambda = 99;
 	
 	for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
 	{
 		if (player->lambda[lambda].waves > 0 || opponent->lambda[lambda].waves > 0)
 		{
+			if (lambda < lowest_lambda) lowest_lambda = lambda;
 			sum_p += lambda_weight * score_lambda(&player->lambda[lambda], &opponent->lambda[lambda], wpegs, wlinks, wzeta);
 			player->lambda[lambda].weight = opponent->lambda[lambda].weight = lambda_weight;    
 			sum_weight += lambda_weight;
 			lambda_weight *= lambda_decay;
-//printf("L = %2d  sum_p = %6.2f  lw = %6.2f  sw = %6.2f  ld = %6.2f\n", lambda, sum_p, lambda_weight, sum_weight, lambda_decay);
 		}
 	}
-	return sum_p / sum_weight;
+	double dscore = sum_p / sum_weight;
+	if (lowest_lambda == 1 && dscore > 99.0) dscore = 99.0;
+	if (lowest_lambda == 2 && dscore > 98.0) dscore = 98.0;
+	return dscore;
 }
 
 void build_field_tracks(BOARD *board, FIELD *player)
@@ -152,8 +156,10 @@ double sum_w = 0.0;
 				sum_w += player->lambda[lambda].weight;
 			}
 		}
-		player->track[s].weight = 100.0 * player->track[s].value / sum_w;
-		//printf("S = %3d  weight = %6.2f  value = %6.2f  sumw = %6.2f\n", s, player->track[s].weight, player->track[s].value, sum_w);
+		if (sum_w > 0.0)
+			player->track[s].weight = 100.0 * player->track[s].value / sum_w;
+		else
+			player->track[s].weight = 0.0;
 	}
 }
 

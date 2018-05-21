@@ -202,6 +202,10 @@ void search_path_v(BOARD *board, int slot, int step, int depth,
 			int steps, unsigned short *pstep,
 			int max_depth, int min_dy)
 {
+	for (int s = 0 ; s < slots ; s++)
+	{
+		if (pslot[s] == slot) return;
+	}
 	pslot[slots] = slot;
 	slots++;
 	if (step >= 0)
@@ -274,6 +278,10 @@ void search_path_h(BOARD *board, int slot, int step, int depth,
 			int steps, unsigned short *pstep,
 			int max_depth, int min_dx)
 {
+	for (int s = 0 ; s < slots ; s++)
+	{
+		if (pslot[s] == slot) return;
+	}
 	pslot[slots] = slot;
 	slots++;
 	if (step >= 0)
