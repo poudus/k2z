@@ -6,9 +6,9 @@
 #include <stdbool.h>
 #include <sys/time.h>
 
-
 #include "board.h"
 #include "state.h"
+#include "database.h"
 
 
 double duration(struct timeval *t1, struct timeval *t2)
@@ -91,6 +91,8 @@ double lambda_decay = 0.8, opp_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game;
 BOARD board;
 TRACK zemoves[256];
+char buffer_error[512];
+PGconn *pgConn = NULL;
 
 	printf("K2Z.engine-version=0.1\n");
 	gettimeofday(&t0, NULL);
@@ -131,9 +133,11 @@ TRACK zemoves[256];
 
 		char command[256], action[256], parameters[256], current_game_moves[64], orientation;
 		int move_number = 0;
-		printf("k2z> ");
 		orientation = 'H';
 		current_game_moves[0] = 0;
+		pgConn = pgOpenConn("kdb12", "k2", "", buffer_error);
+		printf("database connection     = %p\n", pgConn);
+		printf("k2z> ");
 		while (1)
 		{
 			fgets(command, 256, stdin);
@@ -239,13 +243,13 @@ TRACK zemoves[256];
 						{
 							if (empty_field(&state_h.horizontal))
 							{
-								printf("H empty\n");
+								printf("H resign\n");
 								winner = 'V';
 								end_of_game = true;
 							}
 							else if (empty_field(&state_h.horizontal))
 							{
-								printf("H winning\n");
+								printf("H win\n");
 								winner = 'H';
 								end_of_game = true;
 							}
@@ -254,13 +258,13 @@ TRACK zemoves[256];
 						{
 							if (empty_field(&state_v.vertical))
 							{
-								printf("V empty\n");
+								printf("V resign\n");
 								winner = 'H';
 								end_of_game = true;
 							}
 							else if (empty_field(&state_v.vertical))
 							{
-								printf("V winning\n");
+								printf("V win\n");
 								winner = 'V';
 								end_of_game = true;
 							}
@@ -292,6 +296,10 @@ TRACK zemoves[256];
 					gettimeofday(&tend_game, NULL);
 printf("========== winner %c in %d moves : %s  duration = %5.2f s  average = %5.1f ms/move\n",
 	winner, move_number, current_game_moves, duration(&t0_game, &tend_game)/1000, duration(&t0_game, &tend_game)/move_number);
+
+int game_id = insertGame(pgConn, 0, 0, current_game_moves, winner, 'R', duration(&t0_game, &tend_game), 102, 201);
+printf("saved as game_id = %d\n", game_id);
+
 				}
 				else if (strcmp("parameter", action) == 0)
 				{
@@ -487,6 +495,7 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 		}
 		printf("bye.\n");
 		free_board(&board);
+		if (pgConn != NULL) pgCloseConn(pgConn);
 	}
 	else
 	{
