@@ -88,10 +88,10 @@ int main(int argc, char* argv[])
 int depth = 2, width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
 double lambda_decay = 0.8, opp_decay = 0.8;
-struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game;
+struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session;
 BOARD board;
 TRACK zemoves[256];
-char buffer_error[512];
+char buffer_error[512], database_name[32];
 PGconn *pgConn = NULL;
 
 	printf("K2Z.engine-version=0.1\n");
@@ -105,6 +105,7 @@ PGconn *pgConn = NULL;
 		width = atoi(&lsize[0]);
 		height = atoi(&lsize[3]);
 		printf("init.size=%dx%d\n", width, height);
+		sprintf(database_name, "k%s", argv[1]);
 
 		if (argc > 2)
 		{
@@ -135,8 +136,8 @@ PGconn *pgConn = NULL;
 		int move_number = 0;
 		orientation = 'H';
 		current_game_moves[0] = 0;
-		pgConn = pgOpenConn("kdb12", "k2", "", buffer_error);
-		printf("database connection     = %p\n", pgConn);
+		pgConn = pgOpenConn(database_name, "k2", "", buffer_error);
+		printf("database connection     = %p %s\n", pgConn, database_name);
 		printf("k2z> ");
 		while (1)
 		{
@@ -234,7 +235,7 @@ PGconn *pgConn = NULL;
 				else if (strcmp("game", action) == 0)
 				{
 					bool end_of_game = false;
-					char winner = ' ';
+					char winner = ' ', reason = '?';
 					gettimeofday(&t0_game, NULL);
 					while (!end_of_game)
 					{
@@ -245,12 +246,14 @@ PGconn *pgConn = NULL;
 							{
 								printf("H resign\n");
 								winner = 'V';
+								reason = 'R';
 								end_of_game = true;
 							}
 							else if (empty_field(&state_h.horizontal))
 							{
 								printf("H win\n");
 								winner = 'H';
+								reason = 'W';
 								end_of_game = true;
 							}
 						}
@@ -260,12 +263,14 @@ PGconn *pgConn = NULL;
 							{
 								printf("V resign\n");
 								winner = 'H';
+								reason = 'R';
 								end_of_game = true;
 							}
 							else if (empty_field(&state_v.vertical))
 							{
 								printf("V win\n");
 								winner = 'V';
+								reason = 'W';
 								end_of_game = true;
 							}
 						}
@@ -294,12 +299,127 @@ PGconn *pgConn = NULL;
 						}
 					}
 					gettimeofday(&tend_game, NULL);
-printf("========== winner %c in %d moves : %s  duration = %5.2f s  average = %5.1f ms/move\n",
-	winner, move_number, current_game_moves, duration(&t0_game, &tend_game)/1000, duration(&t0_game, &tend_game)/move_number);
+printf("========== winner %c  reason=%c  in %d moves : %s  duration = %5.2f s  average = %5.1f ms/move\n",
+	winner, reason, move_number, current_game_moves, duration(&t0_game, &tend_game)/1000, duration(&t0_game, &tend_game)/move_number);
 
-int game_id = insertGame(pgConn, 0, 0, current_game_moves, winner, 'R', duration(&t0_game, &tend_game), 102, 201);
+int game_id = insertGame(pgConn, 0, 0, current_game_moves, winner, reason, duration(&t0_game, &tend_game), 102, 201);
 printf("saved as game_id = %d\n", game_id);
 
+				}
+				else if (strcmp("session", action) == 0)
+				{
+					int nb_loops = 100;
+					if (strlen(parameters) > 0)
+						nb_loops = atoi(parameters);
+					bool end_of_game = false;
+					char winner = ' ', reason = '?';
+					PLAYER_PARAMETERS hpp, vpp;
+					gettimeofday(&t0_session, NULL);
+					for (int iloop = 1 ; iloop <= nb_loops ; iloop++)
+					{
+						while (!LoadPlayerParameters(pgConn, rand() % 100, &hpp));
+						while (!LoadPlayerParameters(pgConn, rand() % 100, &vpp));
+						// reset
+					current_state = &state_h;
+					init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
+					init_state(&state_v, board.horizontal.paths, board.vertical.paths, false);
+					move_number = 0;
+					orientation = 'H';
+					current_game_moves[0] = 0;
+					lambda_field(&board, &board.horizontal, &state_h.horizontal, false);
+					lambda_field(&board, &board.vertical, &state_h.vertical, false);
+					lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
+					lambda_field(&board, &board.vertical, &state_v.vertical, false);
+						//
+						winner = ' ';
+						end_of_game = false;
+						gettimeofday(&t0_game, NULL);
+printf("=======> New Game %d/%d  H = %d  V = %d\n", iloop, nb_loops, hpp.pid, vpp.pid);
+						while (!end_of_game)
+						{
+							if (orientation == 'H')
+							{
+								eval_orientation(&board, current_state, orientation, hpp.lambda_decay, wpegs, wlinks, wzeta, true);
+								if (empty_field(&state_h.horizontal))
+								{
+									printf("H resign\n");
+									winner = 'V';
+									reason = 'R';
+									end_of_game = true;
+								}
+								else if (empty_field(&state_h.horizontal))
+								{
+									printf("H win\n");
+									winner = 'H';
+									reason = 'W';
+									end_of_game = true;
+								}
+							}
+							else
+							{
+								eval_orientation(&board, current_state, orientation, vpp.lambda_decay, wpegs, wlinks, wzeta, true);
+								if (empty_field(&state_v.vertical))
+								{
+									printf("V resign\n");
+									winner = 'H';
+									reason = 'R';
+									end_of_game = true;
+								}
+								else if (empty_field(&state_v.vertical))
+								{
+									printf("V win\n");
+									winner = 'V';
+									reason = 'W';
+									end_of_game = true;
+								}
+							}
+						if (!end_of_game)
+						{
+							TRACK *pmove = NULL;
+							int idx_move = 0;
+							if (orientation == 'H')
+							{
+								int nb_moves = state_moves(&board, current_state, orientation, hpp.opp_decay, &zemoves[0]);
+								idx_move = rand() % hpp.max_moves;
+								pmove = &zemoves[idx_move];
+								move(&board, &state_h, &state_v, pmove->idx, orientation);
+								orientation = 'V';
+								current_state = &state_v;
+							}
+							else
+							{
+								int nb_moves = state_moves(&board, current_state, orientation, vpp.opp_decay, &zemoves[0]);
+								idx_move = rand() % vpp.max_moves;
+								pmove = &zemoves[idx_move];
+								move(&board, &state_v, &state_h, pmove->idx, orientation);
+								orientation = 'H';
+								current_state = &state_h;
+							}
+							strcat(current_game_moves, board.slot[pmove->idx].code);
+							move_number++;
+							printf("move %d: [%d] %d/%s played\n", move_number, idx_move, pmove->idx, board.slot[pmove->idx].code);
+							eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+							printf("---------- next move %c ----------\n", orientation);
+						}
+						}
+						//EOG
+						gettimeofday(&tend_game, NULL);
+printf("== %d/%d == winner %c  reason=%c  in %d moves : %s  duration = %5.2f s  average = %5.1f ms/move\n",
+	iloop, nb_loops, winner, reason, move_number, current_game_moves, duration(&t0_game, &tend_game)/1000, duration(&t0_game, &tend_game)/move_number);
+if (winner == 'H')
+{
+	UpdatePlayerWin(pgConn, hpp.pid, 10.0);
+	UpdatePlayerLoss(pgConn, vpp.pid, 5.0);
+}
+else
+{
+	UpdatePlayerWin(pgConn, vpp.pid, 10.0);
+	UpdatePlayerLoss(pgConn, hpp.pid, 5.0);
+}
+int mdur = duration(&t0_game, &tend_game)/move_number;
+int game_id = insertGame(pgConn, hpp.pid, vpp.pid, current_game_moves, winner, reason, duration(&t0_game, &tend_game), mdur, mdur);
+printf("saved as game_id = %d\n", game_id);
+					}
 				}
 				else if (strcmp("parameter", action) == 0)
 				{

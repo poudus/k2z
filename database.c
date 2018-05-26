@@ -17,6 +17,7 @@
 #include <pwd.h>
 
 #include <libpq-fe.h>
+#include "database.h"
 
 
 //====================================================
@@ -389,4 +390,50 @@ int insertGame(PGconn *pgConn, int hp, int vp, char *moves, char winner, char re
 	}
 	return game_id;
 }
+
+//====================================================
+//	PLAYER
+//====================================================
+
+bool LoadPlayerParameters(PGconn *pgConn, int player, PLAYER_PARAMETERS *ppp)
+{
+long long id = -1;
+char query[1024];
+
+	sprintf(query, "select lambda_decay, opp_decay, max_moves, depth from k2s.player where id = %d", player);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL && PQntuples(pgres) == 1)
+	{
+		ppp->pid = player;
+		ppp->lambda_decay = atof(PQgetvalue(pgres, 0, 0));
+		ppp->opp_decay = atof(PQgetvalue(pgres, 0, 1));
+		ppp->max_moves = atoi(PQgetvalue(pgres, 0, 2));
+		ppp->depth = atoi(PQgetvalue(pgres, 0, 3));
+		return true;
+	} else return false;
+}
+
+bool UpdatePlayerWin(PGconn *pgConn, int player, double gain)
+{
+	int nbc = 0;
+	
+	if (pgExecFormat(pgConn, &nbc, "update k2s.player set win = win+1, rating = rating + %.2f  where id = %d", gain, player))
+	{
+	  return nbc == 1;
+	}
+	else return false;
+}
+
+bool UpdatePlayerLoss(PGconn *pgConn, int player, double loss)
+{
+	int nbc = 0;
+	
+	if (pgExecFormat(pgConn, &nbc, "update k2s.player set loss = loss+1, rating = rating - %.2f  where id = %d", loss, player))
+	{
+	  return nbc == 1;
+	}
+	else return false;
+}
+
 
