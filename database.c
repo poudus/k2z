@@ -400,7 +400,7 @@ bool LoadPlayerParameters(PGconn *pgConn, int player, PLAYER_PARAMETERS *ppp)
 long long id = -1;
 char query[1024];
 
-	sprintf(query, "select lambda_decay, opp_decay, max_moves, depth from k2s.player where id = %d", player);
+	sprintf(query, "select lambda_decay, opp_decay, max_moves, depth, rating from k2s.player where id = %d", player);
 	
 	PGresult *pgres = pgQuery(pgConn, query);
 	if (pgres != NULL && PQntuples(pgres) == 1)
@@ -410,6 +410,7 @@ char query[1024];
 		ppp->opp_decay = atof(PQgetvalue(pgres, 0, 1));
 		ppp->max_moves = atoi(PQgetvalue(pgres, 0, 2));
 		ppp->depth = atoi(PQgetvalue(pgres, 0, 3));
+		ppp->rating = atof(PQgetvalue(pgres, 0, 4));
 		return true;
 	} else return false;
 }

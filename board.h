@@ -67,6 +67,7 @@ void debugStep(STEP *pstep);
 void printStep(BOARD *board, int step);
 void printPath(BOARD *board, PATH *path);
 int find_slot(BOARD *board, char *pslot);
+int find_xy(BOARD *board, int sx, int sy);
 
 unsigned long init_board(BOARD *board, int width, int height, int depth, int min_direction);
 

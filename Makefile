@@ -1,7 +1,7 @@
 
 
 k2z: k2z.o state.o board.o database.o
-	gcc -lpq -L/usr/lib -o k2z k2z.o state.o board.o database.o -lpq
+	gcc -lpq -L/usr/lib -o k2z k2z.o state.o board.o database.o -lpq -lm
 	
 k2z.o: k2z.c board.h state.h
 	gcc -I/usr/include/postgresql -c k2z.c

@@ -26,6 +26,21 @@ int slot = -1;
 	return slot;
 }
 
+int find_xy(BOARD *board, int sx, int sy)
+{
+int slot = -1;
+
+	for (int s = 0 ; s < board->slots ; s++)
+	{
+		if (sx == board->slot[s].x && sy == board->slot[s].y)
+		{
+			slot = s;
+			break;
+		}
+	}
+	return slot;
+}
+
 void printSlot(BOARD *board, SLOT *pslot)
 {
 char neighbors[128], buf[32];

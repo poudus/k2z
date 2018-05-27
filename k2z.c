@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <math.h>
 #include <sys/time.h>
 
 #include "board.h"
@@ -78,6 +79,11 @@ int parse_slot(BOARD *board, char *pslot)
 	if (strlen(pslot) == 2 && isupper((int)pslot[0]) && isupper((int)pslot[1]))
 		return find_slot(board, pslot);
 	else return atoi(pslot);
+}
+
+double EloExpectedResult(double r1, double r2)
+{
+	return 1.0 / (1.0 + pow(10.0, (r2-r1)/400));
 }
 
 //
@@ -375,14 +381,20 @@ printf("=======> New Game %d/%d  H = %d  V = %d\n", iloop, nb_loops, hpp.pid, vp
 							}
 						if (!end_of_game)
 						{
-							TRACK *pmove = NULL;
-							int idx_move = 0;
+							int idx_move = 0, msid = 63;
 							if (orientation == 'H')
 							{
-								int nb_moves = state_moves(&board, current_state, orientation, hpp.opp_decay, &zemoves[0]);
-								idx_move = rand() % hpp.max_moves;
-								pmove = &zemoves[idx_move];
-								move(&board, &state_h, &state_v, pmove->idx, orientation);
+								if (move_number == 0)
+								{
+									msid = find_xy(&board, 2+rand()%8, 2+rand()%8);
+								}
+								else
+								{
+									int nb_moves = state_moves(&board, current_state, orientation, hpp.opp_decay, &zemoves[0]);
+									idx_move = rand() % hpp.max_moves;
+									msid = zemoves[idx_move].idx;
+								}
+								move(&board, &state_h, &state_v, msid, orientation);
 								orientation = 'V';
 								current_state = &state_v;
 							}
@@ -390,36 +402,45 @@ printf("=======> New Game %d/%d  H = %d  V = %d\n", iloop, nb_loops, hpp.pid, vp
 							{
 								int nb_moves = state_moves(&board, current_state, orientation, vpp.opp_decay, &zemoves[0]);
 								idx_move = rand() % vpp.max_moves;
-								pmove = &zemoves[idx_move];
-								move(&board, &state_v, &state_h, pmove->idx, orientation);
+								msid = zemoves[idx_move].idx;
+								move(&board, &state_v, &state_h, msid, orientation);
 								orientation = 'H';
 								current_state = &state_h;
 							}
-							strcat(current_game_moves, board.slot[pmove->idx].code);
+							strcat(current_game_moves, board.slot[msid].code);
 							move_number++;
-							printf("move %d: [%d] %d/%s played\n", move_number, idx_move, pmove->idx, board.slot[pmove->idx].code);
+							printf("move %d: [%d] %d/%s played\n", move_number, idx_move, msid, board.slot[msid].code);
 							eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
 							printf("---------- next move %c ----------\n", orientation);
 						}
 						}
 						//EOG
 						gettimeofday(&tend_game, NULL);
-printf("== %d/%d == winner %c  reason=%c  in %d moves : %s  duration = %5.2f s  average = %5.1f ms/move\n",
+printf("==== %d/%d ==== winner %c  reason=%c  in %d moves : %s  duration = %5.2f sec  average = %5.1f ms/move\n",
 	iloop, nb_loops, winner, reason, move_number, current_game_moves, duration(&t0_game, &tend_game)/1000, duration(&t0_game, &tend_game)/move_number);
 if (winner == 'H')
 {
-	UpdatePlayerWin(pgConn, hpp.pid, 10.0);
-	UpdatePlayerLoss(pgConn, vpp.pid, 5.0);
+	double expr = EloExpectedResult(hpp.rating, vpp.rating);
+	double gl = 10.0 * (1.0 - expr);
+printf("H  hpr = %.2f  vpr = %.2f   gl = %.2f   expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
+	UpdatePlayerWin(pgConn, hpp.pid, gl);
+	UpdatePlayerLoss(pgConn, vpp.pid, gl);
 }
 else
 {
-	UpdatePlayerWin(pgConn, vpp.pid, 10.0);
-	UpdatePlayerLoss(pgConn, hpp.pid, 5.0);
+	double expr = EloExpectedResult(vpp.rating, hpp.rating);
+	double gl = 10.0 * (1.0 - expr);
+printf("V  hpr = %.2f  vpr = %.2f   gl = %.2f   expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
+	UpdatePlayerWin(pgConn, vpp.pid, gl);
+	UpdatePlayerLoss(pgConn, hpp.pid, gl);
 }
 int mdur = duration(&t0_game, &tend_game)/move_number;
 int game_id = insertGame(pgConn, hpp.pid, vpp.pid, current_game_moves, winner, reason, duration(&t0_game, &tend_game), mdur, mdur);
 printf("saved as game_id = %d\n", game_id);
 					}
+					gettimeofday(&tend_session, NULL);
+printf("===== End of Session: %d games in %.2f sec, avg = %.2f sec/game\n",
+		nb_loops, duration(&t0_session, &tend_session)/1000, 1.0*duration(&t0_session, &tend_session)/(1000.0*nb_loops));
 				}
 				else if (strcmp("parameter", action) == 0)
 				{
