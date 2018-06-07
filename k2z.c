@@ -92,8 +92,10 @@ double EloExpectedResult(double r1, double r2)
 int main(int argc, char* argv[])
 {
 int depth = 2, width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1;
+int hp_min = 0, hp_max = 300;
+int vp_min = 0, vp_max = 300;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
-double lambda_decay = 0.8, opp_decay = 0.8;
+double lambda_decay = 0.8, opponent_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session;
 BOARD board;
 TRACK zemoves[256];
@@ -208,7 +210,7 @@ PGconn *pgConn = NULL;
 				}
 				else if (strcmp("moves", action) == 0)
 				{
-					double od = opp_decay;
+					double od = opponent_decay;
 					if (strlen(parameters) > 0)
 						od = atof(parameters);
 					int nb_moves = state_moves(&board, current_state, orientation, od, &zemoves[0]);
@@ -218,7 +220,7 @@ PGconn *pgConn = NULL;
 				else if (strcmp("play", action) == 0)
 				{
 					eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, true);
-					int nb_moves = state_moves(&board, current_state, orientation, opp_decay, &zemoves[0]);
+					int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
 					int idx_move = rand() % max_moves;
 					TRACK *pmove = &zemoves[idx_move];
 					if (orientation == 'H')
@@ -282,7 +284,7 @@ PGconn *pgConn = NULL;
 						}
 						if (!end_of_game)
 						{
-							int nb_moves = state_moves(&board, current_state, orientation, opp_decay, &zemoves[0]);
+							int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
 							int idx_move = rand() % max_moves;
 							TRACK *pmove = &zemoves[idx_move];
 							if (orientation == 'H')
@@ -323,8 +325,8 @@ printf("saved as game_id = %d\n", game_id);
 					gettimeofday(&t0_session, NULL);
 					for (int iloop = 1 ; iloop <= nb_loops ; iloop++)
 					{
-						while (!LoadPlayerParameters(pgConn, rand() % 100, &hpp));
-						while (!LoadPlayerParameters(pgConn, rand() % 100, &vpp));
+	while (!LoadPlayerParameters(pgConn, hp_min + rand() % (hp_max - hp_min), &hpp));
+	while (!LoadPlayerParameters(pgConn, vp_min + rand() % (vp_max - vp_min), &vpp) && vpp.pid == hpp.pid);
 						// reset
 					current_state = &state_h;
 					init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
@@ -340,7 +342,7 @@ printf("saved as game_id = %d\n", game_id);
 						winner = ' ';
 						end_of_game = false;
 						gettimeofday(&t0_game, NULL);
-printf("=======> New Game %d/%d  H = %d  V = %d\n", iloop, nb_loops, hpp.pid, vpp.pid);
+printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.pid, vpp.pid);
 						while (!end_of_game)
 						{
 							if (orientation == 'H')
@@ -461,10 +463,14 @@ printf("===== End of Session: %d games in %.2f sec, avg = %.2f sec/game\n",
 							double dvalue = atof(pvalue);
 							int ivalue = atoi(pvalue);
 							bool bp = true;
-							if (strcmp(parameters, "lambda_decay") == 0) lambda_decay = dvalue;
-							else if (strcmp(parameters, "opp_decay") == 0) opp_decay = dvalue;
-							else if (strcmp(parameters, "max_moves") == 0) max_moves = ivalue;
+							if (strcmp(parameters, "lambda-decay") == 0) lambda_decay = dvalue;
+							else if (strcmp(parameters, "opponnent-decay") == 0) opponent_decay = dvalue;
+							else if (strcmp(parameters, "max-moves") == 0) max_moves = ivalue;
 							else if (strcmp(parameters, "wzeta") == 0) wzeta = dvalue;
+							else if (strcmp(parameters, "hp-min") == 0) hp_min = ivalue;
+							else if (strcmp(parameters, "hp-max") == 0) hp_max = ivalue;
+							else if (strcmp(parameters, "vp-min") == 0) vp_min = ivalue;
+							else if (strcmp(parameters, "vp-max") == 0) vp_max = ivalue;
 							else bp = false;
 							if (bp) printf("parameter %s set to %6.3f\n", parameters, dvalue);
 						}
@@ -472,12 +478,16 @@ printf("===== End of Session: %d games in %.2f sec, avg = %.2f sec/game\n",
 				}
 				else if (strcmp("parameters", action) == 0)
 				{
-					printf("lambda_decay = %6.3f\n", lambda_decay);
-					printf("opp_decay    = %6.3f\n", opp_decay);
-					printf("max_moves    =  %d\n", max_moves);
-					printf("wpegs        = %6.3f\n", wpegs);
-					printf("wlinks       = %6.3f\n", wlinks);
-					printf("wzeta        = %6.3f\n", wzeta);
+					printf("lambda-decay   = %6.3f\n", lambda_decay);
+					printf("opponent-decay = %6.3f\n", opponent_decay);
+					printf("max-moves      =  %d\n", max_moves);
+					printf("wpegs          = %6.3f\n", wpegs);
+					printf("wlinks         = %6.3f\n", wlinks);
+					printf("wzeta          = %6.3f\n", wzeta);
+					printf("hp-min         = %3d\n", hp_min);
+					printf("hp-max         = %3d\n", hp_max);
+					printf("vp-min         = %3d\n", vp_min);
+					printf("vp-max         = %3d\n", vp_max);
 				}
 				else if (strcmp("position", action) == 0)
 				{
