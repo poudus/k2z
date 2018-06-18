@@ -11,7 +11,9 @@ extern bool	debug_state;
 typedef struct
 {
 unsigned char	status, pegs, links, zeta;
+#ifdef __ZETA__
 unsigned char	slot[16], step[16];
+#endif
 } WAVE;
 
 

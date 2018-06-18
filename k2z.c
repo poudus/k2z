@@ -576,11 +576,15 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 					}
 
 					char buff1[32], buff2[32];
+					buff1[0] = buff2[0] = 0;
+#ifdef __ZETA__
 					strncpy(buff1, pw->slot, PATH_MAX_LENGTH);
 					strncpy(buff2, pw->step, PATH_MAX_LENGTH);
+#endif
 					buff1[ph->slots] = 0;
 					buff2[ph->steps] = 0;
-					printf("s='%C'  p=%d  l=%d  z=%d  slots=[%s]  steps=[%s]\n", pw->status, pw->pegs, pw->links, pw->zeta, buff1, buff2);
+					printf("s='%C'  p=%d  l=%d  z=%d  slots=[%s]  steps=[%s]\n",
+							pw->status, pw->pegs, pw->links, pw->zeta, buff1, buff2);
 				}
 				else if (strcmp("waves", action) == 0 && len_parameter >= 2)
 				{

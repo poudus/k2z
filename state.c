@@ -49,10 +49,13 @@ char buffer1[64], buffer2[64];
 			if (ll == lambda)
 			{
 				PATH *ph = &grid->path[w];
+				buffer1[0] = buffer2[0] = 0;
+#ifdef __ZETA__
 				strncpy(buffer1, field->wave[w].slot, 16);
 				buffer1[ph->slots] = 0;
 				strncpy(buffer2, field->wave[w].step, 16);
 				buffer2[ph->steps] = 0;
+#endif
 				printf("%8d:  %2d - %-2d  [%s]  [%s]\n", w, grid->path[w].slots, field->wave[w].pegs, buffer1, buffer2);
 			}
 		}
@@ -81,19 +84,24 @@ int lambda = 0;
 				int pegs = 0;
 				for (int s = 0 ; s < grid->path[w].slots ; s++)
 				{
+#ifdef __ZETA__
 					if (field->wave[w].slot[s] == '.')
+#endif
 						field->lambda[lambda].slot[grid->path[w].slot[s]]++;
-					else if (field->wave[w].slot[s] == 'X')
-						pegs++;
+					//else if (field->wave[w].slot[s] == 'X')
+					//	pegs++;
 				}
 				int links = 0;
 				for (int s = 0 ; s < grid->path[w].steps ; s++)
 				{
+#ifdef __ZETA__
 					if (field->wave[w].step[s] == '-')
+#endif
 						field->lambda[lambda].step[grid->path[w].step[s]]++;
-					else if (field->wave[w].step[s] == '=')
-						links++;
+					//else if (field->wave[w].step[s] == '=')
+					//	links++;
 				}
+
 				/*if (pegs != field->wave[w].pegs)
 				{
 					char buff[32];
@@ -234,8 +242,10 @@ long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths, bool all
 		state->horizontal.wave[w].pegs = 0;
 		state->horizontal.wave[w].links = 0;
 		state->horizontal.wave[w].zeta = 0;
+#ifdef __ZETA__
 		memcpy(&state->horizontal.wave[w].slot, "................", 16);
 		memcpy(&state->horizontal.wave[w].step, "----------------", 16);
+#endif
 	}
 	state->vertical.waves = state->vertical.count = vpaths;
 	if (alloc_wave) state->vertical.wave = malloc(vpaths * sizeof(WAVE));
@@ -245,8 +255,10 @@ long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths, bool all
 		state->vertical.wave[w].pegs = 0;
 		state->vertical.wave[w].links = 0;
 		state->vertical.wave[w].zeta = 0;
+#ifdef __ZETA__
 		memcpy(&state->vertical.wave[w].slot, "................", 16);
 		memcpy(&state->vertical.wave[w].step, "----------------", 16);
+#endif
 	}
 	state->horizontal.pegs = state->horizontal.links = 0;
 	state->vertical.pegs = state->vertical.links = 0;
@@ -293,12 +305,14 @@ int hpaths = 0, sx = 0, hp = 0;
 		wave[hp].pegs++;
 		hpaths++;
 
+#ifdef __ZETA__
 		int idx = SearchPathSlot(&board->horizontal.path[hp], slot);
 		if (idx >= 0 && idx < PATH_MAX_LENGTH)
 		{
 			wave[hp].slot[idx] = 'X';
 			sx++;
 		}
+#endif
 	}
 	if (debug_state) printf("slot = %3d  hpaths = %8d  sx = %6d\n", slot, hpaths, sx);
 }
@@ -316,12 +330,14 @@ int vpaths = 0, sx = 0, vp = 0;
 		wave[vp].pegs++;
 		vpaths++;
 
+#ifdef __ZETA__
 		int idx = SearchPathSlot(&board->vertical.path[vp], slot);
 		if (idx >= 0 && idx < PATH_MAX_LENGTH)
 		{
 			wave[vp].slot[idx] = 'X';
 			sx++;
 		}
+#endif
 	}
 	if (debug_state) printf("slot = %3d  vpaths = %8d  sx = %6d\n", slot, vpaths, sx);
 }
@@ -402,12 +418,14 @@ int hlinks = 0, lx = 0, hp = 0;
 		wave[hp].links++;
 		hlinks++;
 
+#ifdef __ZETA__
 		int idx = SearchPathStep(&board->horizontal.path[hp], step);
 		if (idx >= 0 && idx < PATH_MAX_LENGTH)
 		{
 			wave[hp].step[idx] = '=';
 			lx++;
 		}
+#endif
 	}
 	if (debug_state) printf("step = %3d  hpaths = %8d  lx = %6d\n", step, hlinks, lx);
 }
@@ -422,12 +440,14 @@ int vlinks = 0, lx = 0, vp = 0;
 		wave[vp].links++;
 		vlinks++;
 
+#ifdef __ZETA__
 		int idx = SearchPathStep(&board->vertical.path[vp], step);
 		if (idx >= 0 && idx < PATH_MAX_LENGTH)
 		{
 			wave[vp].step[idx] = '=';
 			lx++;
 		}
+#endif
 	}
 	if (debug_state) printf("step = %3d  vpaths = %8d  lx = %6d\n", step, vlinks, lx);
 }
