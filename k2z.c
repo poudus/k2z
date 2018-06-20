@@ -92,8 +92,8 @@ double EloExpectedResult(double r1, double r2)
 int main(int argc, char* argv[])
 {
 int depth = 2, width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1;
-int hp_min = 0, hp_max = 300;
-int vp_min = 0, vp_max = 300;
+int hp_min = 0, hp_max = 50;
+int vp_min = 0, vp_max = 50;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
 double lambda_decay = 0.8, opponent_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session;
@@ -437,6 +437,8 @@ printf("V  hpr = %.2f  vpr = %.2f   gl = %.2f   expr = %.4f\n", hpp.rating, vpp.
 	UpdatePlayerLoss(pgConn, hpp.pid, gl);
 }
 int mdur = duration(&t0_game, &tend_game)/move_number;
+if (strlen(current_game_moves) > 128)
+	current_game_moves[128] = 0;
 int game_id = insertGame(pgConn, hpp.pid, vpp.pid, current_game_moves, winner, reason, duration(&t0_game, &tend_game), mdur, mdur);
 printf("saved as game_id = %d\n", game_id);
 					}
