@@ -13,9 +13,9 @@
 #define ONE_MILLION		1000000
 #define ONE_BILLION		1000000000
 
-#define MAX_PATH_PER_SLOT	2 * ONE_MILLION
+#define MAX_PATH_PER_SLOT	3 * ONE_MILLION
 #define MAX_PATH_PER_STEP	1 *ONE_MILLION
-#define MAX_PATHS		10 * ONE_MILLION
+#define MAX_PATHS		30 * ONE_MILLION
 
 
 typedef struct
@@ -58,6 +58,9 @@ STEP		step[NB_MAX_STEPS];
 GRID		horizontal, vertical;
 } BOARD;
 
+
+unsigned int SumSlotPaths(BOARD *board, unsigned int* max);
+unsigned int SumStepPaths(BOARD *board, unsigned int* max);
 
 int SearchPathSlot(PATH *path, unsigned short slot);
 int SearchPathStep(PATH *path, unsigned short step);

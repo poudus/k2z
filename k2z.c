@@ -98,7 +98,7 @@ double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
 double lambda_decay = 0.8, opponent_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session;
 BOARD board;
-TRACK zemoves[256];
+TRACK zemoves[512];
 char buffer_error[512], database_name[32];
 PGconn *pgConn = NULL;
 
@@ -131,16 +131,16 @@ PGconn *pgConn = NULL;
 	if (ul_allocated > 0)
 	{
 		gettimeofday(&t_init_board, NULL);
-		printf("init.board %6.2f ms        size = %4.1f GB  complexity = %10d\n", duration(&t0, &t_init_board), (double)ul_allocated / 1000, board.horizontal.paths+board.vertical.paths);
+		printf("init.board %8.2f ms        size = %6ld MB  complexity = %10d\n", duration(&t0, &t_init_board), ul_allocated, board.horizontal.paths+board.vertical.paths);
 
 		STATE state_h, state_v, *current_state;
 		current_state = &state_h;
 		long size_s0 = init_state(&state_h, board.horizontal.paths, board.vertical.paths, true);
 		init_state(&state_v, board.horizontal.paths, board.vertical.paths, true);
 		gettimeofday(&t_init_s0, NULL);
-		printf("init.s0    %6.2f ms        size = %4ld MB\n", duration(&t_init_board, &t_init_s0), size_s0 / ONE_MILLION);
+		printf("init.s0    %8.2f ms        size = %6ld MB\n", duration(&t_init_board, &t_init_s0), size_s0 / ONE_MILLION);
 
-		char command[256], action[256], parameters[256], current_game_moves[64], orientation;
+		char command[256], action[256], parameters[256], current_game_moves[256], orientation;
 		int move_number = 0;
 		orientation = 'H';
 		current_game_moves[0] = 0;
@@ -326,7 +326,7 @@ printf("saved as game_id = %d\n", game_id);
 					for (int iloop = 1 ; iloop <= nb_loops ; iloop++)
 					{
 	while (!LoadPlayerParameters(pgConn, hp_min + rand() % (hp_max - hp_min), &hpp));
-	while (!LoadPlayerParameters(pgConn, vp_min + rand() % (vp_max - vp_min), &vpp) && vpp.pid == hpp.pid);
+	while (!LoadPlayerParameters(pgConn, vp_min + rand() % (vp_max - vp_min), &vpp) || vpp.pid == hpp.pid);
 						// reset
 					current_state = &state_h;
 					init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
@@ -339,7 +339,7 @@ printf("saved as game_id = %d\n", game_id);
 					lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
 					lambda_field(&board, &board.vertical, &state_v.vertical, false);
 						//
-						winner = ' ';
+						winner = ' '; reason = '?';
 						end_of_game = false;
 						gettimeofday(&t0_game, NULL);
 printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.pid, vpp.pid);
@@ -380,46 +380,51 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 									reason = 'W';
 									end_of_game = true;
 								}
+								//printf("winner = %c  reason = %c\n", winner, reason);
 							}
-						if (!end_of_game)
-						{
-							int idx_move = 0, msid = 63;
-							if (orientation == 'H')
+							if (!end_of_game)
 							{
-								if (move_number == 0)
+								int idx_move = 0, msid = 63;
+								if (orientation == 'H')
 								{
-									msid = find_xy(&board, 2+rand()%8, 2+rand()%8);
+									if (move_number == 0)
+									{
+										msid = find_xy(&board, 2+rand()%(width-4), 2+rand()%(height-4));
+									}
+									else
+									{
+										int nb_moves = state_moves(&board, current_state, orientation, hpp.opp_decay, &zemoves[0]);
+										idx_move = rand() % hpp.max_moves;
+										msid = zemoves[idx_move].idx;
+									}
+									move(&board, &state_h, &state_v, msid, orientation);
+									orientation = 'V';
+									current_state = &state_v;
 								}
 								else
 								{
-									int nb_moves = state_moves(&board, current_state, orientation, hpp.opp_decay, &zemoves[0]);
-									idx_move = rand() % hpp.max_moves;
+									int nb_moves = state_moves(&board, current_state, orientation, vpp.opp_decay, &zemoves[0]);
+								//printf("winner = %c  reason = %c  vpp.max_moves = %d\n", winner, reason, vpp.max_moves);
+									idx_move = rand() % vpp.max_moves;
+								//printf("nb_moves = %d  idx_move = %d\n", nb_moves, idx_move);
 									msid = zemoves[idx_move].idx;
+									move(&board, &state_v, &state_h, msid, orientation);
+									orientation = 'H';
+									current_state = &state_h;
 								}
-								move(&board, &state_h, &state_v, msid, orientation);
-								orientation = 'V';
-								current_state = &state_v;
+								strcat(current_game_moves, board.slot[msid].code);
+								move_number++;
+								printf("play %d: [%d] %d/%s\n", move_number, idx_move, msid, board.slot[msid].code);
+								eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+								printf("---------- next move %c ----------\n", orientation);
 							}
-							else
-							{
-								int nb_moves = state_moves(&board, current_state, orientation, vpp.opp_decay, &zemoves[0]);
-								idx_move = rand() % vpp.max_moves;
-								msid = zemoves[idx_move].idx;
-								move(&board, &state_v, &state_h, msid, orientation);
-								orientation = 'H';
-								current_state = &state_h;
-							}
-							strcat(current_game_moves, board.slot[msid].code);
-							move_number++;
-							printf("move %d: [%d] %d/%s played\n", move_number, idx_move, msid, board.slot[msid].code);
-							eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
-							printf("---------- next move %c ----------\n", orientation);
-						}
 						}
 						//EOG
 						gettimeofday(&tend_game, NULL);
-printf("==== %d/%d ==== winner %c  reason=%c  in %d moves : %s  duration = %5.2f sec  average = %5.1f ms/move\n",
-	iloop, nb_loops, winner, reason, move_number, current_game_moves, duration(&t0_game, &tend_game)/1000, duration(&t0_game, &tend_game)/move_number);
+printf("==== %d/%d ==== winner %c  reason=%c  in %d moves : %s\n", iloop, nb_loops, winner, reason, move_number, current_game_moves);
+printf("duration = %6d sec\n", (int)duration(&t0_game, &tend_game)/1000);
+printf("average  = %6d ms/move\n", (int)duration(&t0_game, &tend_game)/move_number);
+
 if (winner == 'H')
 {
 	double expr = EloExpectedResult(hpp.rating, vpp.rating);
@@ -440,7 +445,7 @@ int mdur = duration(&t0_game, &tend_game)/move_number;
 if (strlen(current_game_moves) > 128)
 	current_game_moves[128] = 0;
 int game_id = insertGame(pgConn, hpp.pid, vpp.pid, current_game_moves, winner, reason, duration(&t0_game, &tend_game), mdur, mdur);
-printf("saved as game_id = %d\n", game_id);
+printf("saved as game_id = %d\n\n", game_id);
 					}
 					gettimeofday(&tend_session, NULL);
 printf("===== End of Session: %d games in %.2f sec, avg = %.2f sec/game\n",
@@ -619,8 +624,16 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 					printf("size         = %dx%d\n", width, height);
 					printf("max_lambda   = %2d\n", slambda);
 					printf("direction    = %2d\n", sdirection);
-					printf("hpaths       = %2d\n", board.horizontal.paths);
-					printf("vpaths       = %2d\n", board.vertical.paths);
+					printf("hpaths       = %8d  %6ld MB\n", board.horizontal.paths, board.horizontal.paths * sizeof(PATH) / 1000000);
+					printf("vpaths       = %8d  %6ld MB\n", board.vertical.paths, board.vertical.paths * sizeof(PATH) / 1000000);
+					unsigned int slots_max = 0, steps_max = 0;
+					long sz_slots = sizeof(unsigned int) * SumSlotPaths(&board, &slots_max) / 1000000;
+					long sz_steps = sizeof(unsigned int) * SumStepPaths(&board, &steps_max) / 1000000;
+					printf("slots        = %-4d     %6ld MB  %8d\n", board.slots, sz_slots, slots_max);
+					printf("steps        = %-4d     %6ld MB  %8d\n", board.steps, sz_steps, steps_max);
+		printf("total        =          %6ld MB\n", (board.horizontal.paths + board.vertical.paths) * sizeof(PATH) / 1000000 + sz_slots + sz_steps);
+					printf("field        =          %6ld MB\n", (board.horizontal.paths + board.vertical.paths) * sizeof(WAVE) / 1000000);
+
 				}
 				else if (strcmp("help", action) == 0)
 				{

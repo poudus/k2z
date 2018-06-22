@@ -11,6 +11,36 @@
 
 static int gslots = 0, gsteps = 0;
 
+unsigned int SumSlotPaths(BOARD *board, unsigned int* max)
+{
+unsigned int count = 0;
+
+	*max = 0;
+	for (int s = 0 ; s < NB_MAX_SLOTS ; s++)
+	{
+		count += board->slot[s].hpaths;
+		count += board->slot[s].vpaths;
+		if (board->slot[s].hpaths > *max) *max = board->slot[s].hpaths;
+		if (board->slot[s].vpaths > *max) *max = board->slot[s].vpaths;
+	}
+	return count;
+}
+
+unsigned int SumStepPaths(BOARD *board, unsigned int* max)
+{
+unsigned int count = 0;
+
+	*max = 0;
+	for (int s = 0 ; s < NB_MAX_STEPS ; s++)
+	{
+		count += board->step[s].hpaths;
+		count += board->step[s].vpaths;
+		if (board->step[s].hpaths > *max) *max = board->step[s].hpaths;
+		if (board->step[s].vpaths > *max) *max = board->step[s].vpaths;
+	}
+	return count;
+}
+
 int find_slot(BOARD *board, char *pslot)
 {
 int slot = -1;

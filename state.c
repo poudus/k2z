@@ -207,6 +207,8 @@ int state_moves(BOARD *board, STATE *state, char orientation, double opponent_de
 double	v = 0.0;
 int	moves = 0;
 
+//printf("state_moves %c\n", orientation);
+
 	for (int s = 0 ; s < board->slots ; s++)
 	{
 		if (is_state_peg(state, s)) continue;
@@ -228,6 +230,7 @@ int	moves = 0;
 		moves++;
 	}
 	qsort(move, moves, sizeof(TRACK), cmpmove);
+//printf("state_moves %d moves\n", moves);
 	return moves;
 }
 
@@ -498,7 +501,7 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 			{
 				state->horizontal.link[state->horizontal.links] = ln;
 				state->horizontal.links++;
-				printf("debug.move: horizontal link created = %d, sn = %d\n", ln, sn);
+				if (debug_state) printf("debug.move: horizontal link created = %d, sn = %d\n", ln, sn);
 			}
 		}
 		state->horizontal.pegs++;
@@ -551,7 +554,7 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 			{
 				state->vertical.link[state->vertical.links] = ln;
 				state->vertical.links++;
-printf("debug.move: vertical link created = %d, sn = %d\n", ln, sn);
+				if (debug_state) printf("debug.move: vertical link created = %d, sn = %d\n", ln, sn);
 			}
 		}
 		state->vertical.pegs++;
