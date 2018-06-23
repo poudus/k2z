@@ -437,4 +437,27 @@ bool UpdatePlayerLoss(PGconn *pgConn, int player, double loss)
 	else return false;
 }
 
+bool UpdatePlayerDraw(PGconn *pgConn, int player, double gl)
+{
+	int nbc = 0;
+	
+	if (gl > 0.0)
+	{
+		if (pgExecFormat(pgConn, &nbc, "update k2s.player set draw = draw+1, rating = rating + %.2f  where id = %d", gl, player))
+		{
+		  return nbc == 1;
+		}
+		else return false;
+	}
+	else
+	{
+		if (pgExecFormat(pgConn, &nbc, "update k2s.player set draw = draw+1, rating = rating - %.2f  where id = %d", fabs(gl), player))
+		{
+		  return nbc == 1;
+		}
+		else return false;
+	}
+}
+
+
 

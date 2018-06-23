@@ -325,19 +325,19 @@ printf("saved as game_id = %d\n", game_id);
 					gettimeofday(&t0_session, NULL);
 					for (int iloop = 1 ; iloop <= nb_loops ; iloop++)
 					{
-	while (!LoadPlayerParameters(pgConn, hp_min + rand() % (hp_max - hp_min), &hpp));
-	while (!LoadPlayerParameters(pgConn, vp_min + rand() % (vp_max - vp_min), &vpp) || vpp.pid == hpp.pid);
+						while (!LoadPlayerParameters(pgConn, hp_min + rand() % (hp_max - hp_min), &hpp));
+						while (!LoadPlayerParameters(pgConn, vp_min + rand() % (vp_max - vp_min), &vpp) || vpp.pid == hpp.pid);
 						// reset
-					current_state = &state_h;
-					init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
-					init_state(&state_v, board.horizontal.paths, board.vertical.paths, false);
-					move_number = 0;
-					orientation = 'H';
-					current_game_moves[0] = 0;
-					lambda_field(&board, &board.horizontal, &state_h.horizontal, false);
-					lambda_field(&board, &board.vertical, &state_h.vertical, false);
-					lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
-					lambda_field(&board, &board.vertical, &state_v.vertical, false);
+						current_state = &state_h;
+						init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
+						init_state(&state_v, board.horizontal.paths, board.vertical.paths, false);
+						move_number = 0;
+						orientation = 'H';
+						current_game_moves[0] = 0;
+						lambda_field(&board, &board.horizontal, &state_h.horizontal, false);
+						lambda_field(&board, &board.vertical, &state_h.vertical, false);
+						lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
+						lambda_field(&board, &board.vertical, &state_v.vertical, false);
 						//
 						winner = ' '; reason = '?';
 						end_of_game = false;
@@ -345,42 +345,51 @@ printf("saved as game_id = %d\n", game_id);
 printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.pid, vpp.pid);
 						while (!end_of_game)
 						{
-							if (orientation == 'H')
+							if (move_number >= 60)
 							{
-								eval_orientation(&board, current_state, orientation, hpp.lambda_decay, wpegs, wlinks, wzeta, true);
-								if (empty_field(&state_h.horizontal))
-								{
-									printf("H resign\n");
-									winner = 'V';
-									reason = 'R';
-									end_of_game = true;
-								}
-								else if (empty_field(&state_h.horizontal))
-								{
-									printf("H win\n");
-									winner = 'H';
-									reason = 'W';
-									end_of_game = true;
-								}
+								printf("DRAW 60 moves\n");
+								winner = ' ';
+								reason = 'M';
+								end_of_game = true;
 							}
 							else
 							{
-								eval_orientation(&board, current_state, orientation, vpp.lambda_decay, wpegs, wlinks, wzeta, true);
-								if (empty_field(&state_v.vertical))
+								if (orientation == 'H')
 								{
-									printf("V resign\n");
-									winner = 'H';
-									reason = 'R';
-									end_of_game = true;
+									eval_orientation(&board, current_state, orientation, hpp.lambda_decay, wpegs, wlinks, wzeta, true);
+									if (empty_field(&state_h.horizontal))
+									{
+										printf("H resign\n");
+										winner = 'V';
+										reason = 'R';
+										end_of_game = true;
+									}
+									else if (empty_field(&state_h.horizontal))
+									{
+										printf("H win\n");
+										winner = 'H';
+										reason = 'W';
+										end_of_game = true;
+									}
 								}
-								else if (empty_field(&state_v.vertical))
+								else
 								{
-									printf("V win\n");
-									winner = 'V';
-									reason = 'W';
-									end_of_game = true;
+									eval_orientation(&board, current_state, orientation, vpp.lambda_decay, wpegs, wlinks, wzeta, true);
+									if (empty_field(&state_v.vertical))
+									{
+										printf("V resign\n");
+										winner = 'H';
+										reason = 'R';
+										end_of_game = true;
+									}
+									else if (empty_field(&state_v.vertical))
+									{
+										printf("V win\n");
+										winner = 'V';
+										reason = 'W';
+										end_of_game = true;
+									}
 								}
-								//printf("winner = %c  reason = %c\n", winner, reason);
 							}
 							if (!end_of_game)
 							{
@@ -421,35 +430,44 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 						}
 						//EOG
 						gettimeofday(&tend_game, NULL);
-printf("==== %d/%d ==== winner %c  reason=%c  in %d moves : %s\n", iloop, nb_loops, winner, reason, move_number, current_game_moves);
-printf("duration = %6d sec\n", (int)duration(&t0_game, &tend_game)/1000);
-printf("average  = %6d ms/move\n", (int)duration(&t0_game, &tend_game)/move_number);
+						printf("==== %d/%d ==== winner %c  reason=%c  in %d moves : %s\n", iloop, nb_loops, winner, reason, move_number, current_game_moves);
+						printf("duration = %6d sec\n", (int)duration(&t0_game, &tend_game)/1000);
+						printf("average  = %6d ms/move\n", (int)duration(&t0_game, &tend_game)/move_number);
 
-if (winner == 'H')
-{
-	double expr = EloExpectedResult(hpp.rating, vpp.rating);
-	double gl = 10.0 * (1.0 - expr);
-printf("H  hpr = %.2f  vpr = %.2f   gl = %.2f   expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
-	UpdatePlayerWin(pgConn, hpp.pid, gl);
-	UpdatePlayerLoss(pgConn, vpp.pid, gl);
-}
-else
-{
-	double expr = EloExpectedResult(vpp.rating, hpp.rating);
-	double gl = 10.0 * (1.0 - expr);
-printf("V  hpr = %.2f  vpr = %.2f   gl = %.2f   expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
-	UpdatePlayerWin(pgConn, vpp.pid, gl);
-	UpdatePlayerLoss(pgConn, hpp.pid, gl);
-}
-int mdur = duration(&t0_game, &tend_game)/move_number;
-if (strlen(current_game_moves) > 128)
-	current_game_moves[128] = 0;
-int game_id = insertGame(pgConn, hpp.pid, vpp.pid, current_game_moves, winner, reason, duration(&t0_game, &tend_game), mdur, mdur);
-printf("saved as game_id = %d\n\n", game_id);
+						if (winner == 'H')
+						{
+							double expr = EloExpectedResult(hpp.rating, vpp.rating);
+							double gl = 10.0 * (1.0 - expr);
+							printf("H  hpr = %.2f  vpr = %.2f   gl = %.2f   expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
+							UpdatePlayerWin(pgConn, hpp.pid, gl);
+							UpdatePlayerLoss(pgConn, vpp.pid, gl);
+						}
+						else if (winner == 'V')
+						{
+							double expr = EloExpectedResult(vpp.rating, hpp.rating);
+							double gl = 10.0 * (1.0 - expr);
+							printf("V  hpr = %.2f  vpr = %.2f   gl = %.2f   expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
+							UpdatePlayerWin(pgConn, vpp.pid, gl);
+							UpdatePlayerLoss(pgConn, hpp.pid, gl);
+						}
+						else
+						{
+							double expr = EloExpectedResult(hpp.rating, vpp.rating);
+							double hgl = 10.0 * (0.5 - expr);
+							printf("D  hpr = %.2f  vpr = %.2f   hgl = %.2f   hexpr = %.4f\n", hpp.rating, vpp.rating, hgl, expr);
+							UpdatePlayerDraw(pgConn, hpp.pid, hgl);
+							UpdatePlayerDraw(pgConn, vpp.pid, -hgl);
+						}
+
+						int mdur = duration(&t0_game, &tend_game)/move_number;
+						if (strlen(current_game_moves) > 128)
+							current_game_moves[128] = 0;
+						int game_id = insertGame(pgConn, hpp.pid, vpp.pid, current_game_moves, winner, reason, duration(&t0_game, &tend_game), mdur, mdur);
+						printf("saved as game_id = %d\n\n", game_id);
 					}
 					gettimeofday(&tend_session, NULL);
-printf("===== End of Session: %d games in %.2f sec, avg = %.2f sec/game\n",
-		nb_loops, duration(&t0_session, &tend_session)/1000, 1.0*duration(&t0_session, &tend_session)/(1000.0*nb_loops));
+					printf("===== End of Session: %d games in %.2f sec, avg = %.2f sec/game\n",
+					nb_loops, duration(&t0_session, &tend_session)/1000, 1.0*duration(&t0_session, &tend_session)/(1000.0*nb_loops));
 				}
 				else if (strcmp("parameter", action) == 0)
 				{
@@ -629,10 +647,10 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 					unsigned int slots_max = 0, steps_max = 0;
 					long sz_slots = sizeof(unsigned int) * SumSlotPaths(&board, &slots_max) / 1000000;
 					long sz_steps = sizeof(unsigned int) * SumStepPaths(&board, &steps_max) / 1000000;
-					printf("slots        = %-4d     %6ld MB  %8d\n", board.slots, sz_slots, slots_max);
-					printf("steps        = %-4d     %6ld MB  %8d\n", board.steps, sz_steps, steps_max);
-		printf("total        =          %6ld MB\n", (board.horizontal.paths + board.vertical.paths) * sizeof(PATH) / 1000000 + sz_slots + sz_steps);
-					printf("field        =          %6ld MB\n", (board.horizontal.paths + board.vertical.paths) * sizeof(WAVE) / 1000000);
+					printf("slots        = %-4d      %6ld MB  %8d\n", board.slots, sz_slots, slots_max);
+					printf("steps        = %-4d      %6ld MB  %8d\n", board.steps, sz_steps, steps_max);
+					printf("total        =           %6ld MB\n", (board.horizontal.paths + board.vertical.paths) * sizeof(PATH) / 1000000 + sz_slots + sz_steps);
+					printf("field        =           %6ld MB\n", (board.horizontal.paths + board.vertical.paths) * sizeof(WAVE) / 1000000);
 
 				}
 				else if (strcmp("help", action) == 0)

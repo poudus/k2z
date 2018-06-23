@@ -10,6 +10,7 @@
 
 
 static int gslots = 0, gsteps = 0;
+static bool gpath_overflow = false;
 
 unsigned int SumSlotPaths(BOARD *board, unsigned int* max)
 {
@@ -274,7 +275,10 @@ void search_path_v(BOARD *board, int slot, int step, int depth,
 				board->slot[sslot].vpath[board->slot[sslot].vpaths] = board->vertical.paths;
 				board->slot[sslot].vpaths++;
 				if (board->slot[sslot].vpaths > MAX_PATH_PER_SLOT)
-					printf("error.vpath.slot %d: %d", sslot, board->slot[sslot].vpaths);
+				{
+					if (!gpath_overflow) printf("error.vpath.slot overflow %d: %d\n", sslot, board->slot[sslot].vpaths);
+					gpath_overflow = true;
+				}
 			}
 			gslots++;
 		}
@@ -292,7 +296,10 @@ void search_path_v(BOARD *board, int slot, int step, int depth,
 				board->step[sstep].vpath[board->step[sstep].vpaths] = board->vertical.paths;
 				board->step[sstep].vpaths++;
 				if (board->step[sstep].vpaths > MAX_PATH_PER_STEP)
-					printf("error.vpath.step %d: %d", sstep, board->step[sstep].vpaths);
+				{
+					if (!gpath_overflow) printf("error.vpath.step overflow %d: %d\n", sstep, board->step[sstep].vpaths);
+					gpath_overflow = true;
+				}
 			}
 			gsteps++;
 		}
@@ -312,7 +319,7 @@ void search_path_v(BOARD *board, int slot, int step, int depth,
 			int sn = board->slot[slot].neighbor[n];
 			if (board->slot[sn].y - board->slot[slot].y >= min_dy)
 			{
-search_path_v(board, sn, board->slot[slot].link[n], depth+1, slots, pslot, steps, pstep, max_depth, min_dy);
+				if (!gpath_overflow) search_path_v(board, sn, board->slot[slot].link[n], depth+1, slots, pslot, steps, pstep, max_depth, min_dy);
 			}
 		}
 	}
@@ -350,7 +357,10 @@ void search_path_h(BOARD *board, int slot, int step, int depth,
 				board->slot[sslot].hpath[board->slot[sslot].hpaths] = board->horizontal.paths;
 				board->slot[sslot].hpaths++;
 				if (board->slot[sslot].hpaths > MAX_PATH_PER_SLOT)
-					printf("error.hpath.slot %d: %d", sslot, board->slot[sslot].hpaths);
+				{
+					if (!gpath_overflow) printf("error.hpath.slot overflow %d: %d\n", sslot, board->slot[sslot].hpaths);
+					gpath_overflow = true;
+				}
 			}
 			gslots++;
 		}
@@ -368,7 +378,10 @@ void search_path_h(BOARD *board, int slot, int step, int depth,
 				board->step[sstep].hpath[board->step[sstep].hpaths] = board->horizontal.paths;
 				board->step[sstep].hpaths++;
 				if (board->step[sstep].hpaths > MAX_PATH_PER_STEP)
-					printf("error.hpath.step %d: %d", sstep, board->step[sstep].hpaths);
+				{
+					if (!gpath_overflow) printf("error.hpath.step overflow %d: %d\n", sstep, board->step[sstep].hpaths);
+					gpath_overflow = true;
+				}
 			}
 			gsteps++;
 		}
@@ -388,7 +401,7 @@ void search_path_h(BOARD *board, int slot, int step, int depth,
 			int sn = board->slot[slot].neighbor[n];
 			if (board->slot[sn].x - board->slot[slot].x >= min_dx)
 			{
-search_path_h(board, sn, board->slot[slot].link[n], depth+1, slots, pslot, steps, pstep, max_depth, min_dx);
+				if (!gpath_overflow) search_path_h(board, sn, board->slot[slot].link[n], depth+1, slots, pslot, steps, pstep, max_depth, min_dx);
 			}
 		}
 	}
@@ -433,9 +446,19 @@ unsigned long init_board(BOARD *board, int width, int height, int depth, int min
 				board->slot[board->slots].neighbors = 0;
 				board->slot[board->slots].hpaths = 0;
 				board->slot[board->slots].hpath = malloc(MAX_PATH_PER_SLOT * sizeof(unsigned int));
+				if (board->slot[board->slots].hpath == NULL)
+				{
+					printf("cannot allocate slot hpath array, slot = %d\n", board->slots);
+					exit(-1);
+				}
 				size_slots += MAX_PATH_PER_SLOT * sizeof(unsigned int);
 				board->slot[board->slots].vpaths = 0;
 				board->slot[board->slots].vpath = malloc(MAX_PATH_PER_SLOT * sizeof(unsigned int));
+				if (board->slot[board->slots].vpath == NULL)
+				{
+					printf("cannot allocate slot vpath array, slot = %d\n", board->slots);
+					exit(-1);
+				}
 				size_slots += MAX_PATH_PER_SLOT * sizeof(unsigned int);
 				sprintf(board->slot[board->slots].code, "%c%c", 'A'+x, 'A'+y);
 				board->slots++;
@@ -474,9 +497,19 @@ unsigned long init_board(BOARD *board, int width, int height, int depth, int min
 				board->step[board->steps].cuts = 0;
 				board->step[board->steps].hpaths = 0;
 				board->step[board->steps].hpath = malloc(MAX_PATH_PER_STEP * sizeof(unsigned int));
+				if (board->step[board->steps].hpath == NULL)
+				{
+					printf("cannot allocate step hpath array, step = %d\n", board->steps);
+					exit(-1);
+				}
 				size_steps += MAX_PATH_PER_STEP * sizeof(unsigned int);
 				board->step[board->steps].vpaths = 0;
 				board->step[board->steps].vpath = malloc(MAX_PATH_PER_STEP * sizeof(unsigned int));
+				if (board->step[board->steps].vpath == NULL)
+				{
+					printf("cannot allocate step vpath array, step = %d\n", board->steps);
+					exit(-1);
+				}
 				size_steps += MAX_PATH_PER_STEP * sizeof(unsigned int);
 				sprintf(board->step[board->steps].code, "%c%c%c%c",
 					'A'+board->slot[s1].x, 'A'+board->slot[s1].y,
@@ -559,12 +592,6 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		}
 	}
 
-	/*printf("mpd1  = %d\n", mpd1);
-	printf("mpd5  = %d\n", mpd5);
-	printf("mpd9  = %d\n", mpd9);
-	printf("mpd13 = %d\n", mpd13);
-	printf("mpdx  = %d\n", mpdx);*/
-
 	int max_cuts = 0, sign = 0, sx = 0, sy = 0;
 	for (int s = 0 ; s < board->steps ; s++)
 	{
@@ -572,31 +599,26 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		sx += board->step[s].sx;
 		sy += board->step[s].sy;
 		if (board->step[s].cuts > max_cuts) max_cuts = board->step[s].cuts;
-//printStep(&board->step[s]);
-//printf("step[%03d].cuts = %d:", s, board->step[s].cuts);
-//for (int icut = 0 ; icut < board->step[s].cuts ; icut++)
-//	printf(" %d", board->step[s].cut[icut]);
-//printf("\n");
 	}
-	printf("debug.max_cuts = %d\n", max_cuts);
-	//printf("debug.avg_sign = %6.4f\n", (double)sign/board->steps);
-	//printf("debug.avg_sx = %6.4f\n", (double)sx/board->steps);
-	//printf("debug.avg_sy = %6.4f\n", (double)sy/board->steps);
+	printf("debug.max_cuts      = %d\n", max_cuts);
 
+	// -----
 	// paths
+	// -----
 	unsigned short *slots = malloc(PATH_MAX_LENGTH*sizeof(unsigned short));
 	unsigned short *steps = malloc(PATH_MAX_LENGTH*sizeof(unsigned short));
+
+	// horizontal
 
 	long size_hpaths = MAX_PATHS * sizeof(PATH);
 	board->horizontal.path = malloc(size_hpaths);
 	board->horizontal.paths = 0;
 	for (int s = 0 ; s < board->slots ; s++)
 	{
-		if (board->slot[s].x == 0)
-			search_path_h(board, s, -1, 0, 0, slots, 0, steps, depth-1, min_direction);
+		if (board->slot[s].x == 0) search_path_h(board, s, -1, 0, 0, slots, 0, steps, depth-1, min_direction);
 	}
-	printf("debug.horizontal_paths  = %10d             gslots = %10d  size = %ld MB\n",
-			board->horizontal.paths, gslots, size_hpaths/ONE_MILLION);
+	if (gpath_overflow) exit(-1);
+	printf("debug.horizontal_paths  = %10d             gslots = %10d  size = %ld MB\n", board->horizontal.paths, gslots, size_hpaths/ONE_MILLION);
 
 	// slots paths
 	int nb_slots_path = 0, nb_steps_path = 0;
@@ -638,7 +660,6 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 	printf("debug.max_path_per_step = %10d  %s %5.2f %%  sum = %10d  nbw  = %d\n\n", max_path_per_step,
 			board->step[smax].code, 100.0 * max_path_per_step / board->horizontal.paths, sump, nbw);
 
-
 	// vertical
 
 	gslots = 0; gsteps = 0;
@@ -647,11 +668,10 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 	board->vertical.paths = 0;
 	for (int s = 0 ; s < board->slots ; s++)
 	{
-		if (board->slot[s].y == 0)
-			search_path_v(board, s, -1, 0, 0, slots, 0, steps, depth-1, min_direction);
+		if (board->slot[s].y == 0) search_path_v(board, s, -1, 0, 0, slots, 0, steps, depth-1, min_direction);
 	}
-	printf("debug.vertical_paths    = %10d             gslots = %10d  size = %ld MB\n",
-			board->vertical.paths, gslots, size_vpaths/ONE_MILLION);
+	if (gpath_overflow) exit(-1);
+	printf("debug.vertical_paths    = %10d             gslots = %10d  size = %ld MB\n", board->vertical.paths, gslots, size_vpaths/ONE_MILLION);
 
 	// slots paths
 	nb_slots_path = 0; nb_steps_path = 0;
@@ -712,9 +732,8 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 
 	printf("debug.path_released     = %10ld  MB\n", paths_size_released / ONE_MILLION);
 
-	//checkSlotPaths(board, 63);
-
 	// slots release
+
 	long slots_size_released = 0;
 	for (int s = 0 ; s < board->slots ; s++)
 	{
@@ -728,6 +747,11 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 			slots_size_released += (MAX_PATH_PER_SLOT - board->slot[s].hpaths) * sizeof(unsigned int);
 			unsigned int *ph = board->slot[s].hpath;
 			board->slot[s].hpath = malloc(board->slot[s].hpaths * sizeof(unsigned int));
+			if (board->slot[s].hpath == NULL)
+			{
+				printf("cannot reallocate slot hpath array, slot = %d\n", s);
+				exit(-1);
+			}
 			for (int ih = 0 ; ih < board->slot[s].hpaths ; ih++)
 			{
 				board->slot[s].hpath[ih] = ph[ih];
@@ -745,6 +769,11 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 			slots_size_released += (MAX_PATH_PER_SLOT - board->slot[s].vpaths) * sizeof(unsigned int);
 			unsigned int *ph = board->slot[s].vpath;
 			board->slot[s].vpath = malloc(board->slot[s].vpaths * sizeof(unsigned int));
+			if (board->slot[s].vpath == NULL)
+			{
+				printf("cannot reallocate slot vpath array, slot = %d\n", s);
+				exit(-1);
+			}
 			for (int ih = 0 ; ih < board->slot[s].vpaths ; ih++)
 			{
 				board->slot[s].vpath[ih] = ph[ih];
@@ -753,48 +782,60 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		}
 	}
 	printf("debug.slots_released    = %10ld  MB\n", slots_size_released / ONE_MILLION);
-		// steps release
-		long steps_size_released = 0;
-		for (int s = 0 ; s < board->steps ; s++)
+
+	// steps release
+
+	long steps_size_released = 0;
+	for (int s = 0 ; s < board->steps ; s++)
+	{
+		if (board->step[s].hpaths == 0)
 		{
-			if (board->step[s].hpaths == 0)
-			{
-				steps_size_released += MAX_PATH_PER_STEP * sizeof(unsigned int);
-				free(board->step[s].hpath);
-			}
-			else
-			{
-				steps_size_released += (MAX_PATH_PER_STEP - board->step[s].hpaths) * sizeof(unsigned int);
-				unsigned int *ph = board->step[s].hpath;
-				board->step[s].hpath = malloc(board->step[s].hpaths * sizeof(unsigned int));
-				for (int ih = 0 ; ih < board->step[s].hpaths ; ih++)
-				{
-					board->step[s].hpath[ih] = ph[ih];
-				}
-				free(ph);
-			}
-			//---------
-			if (board->step[s].vpaths == 0)
-			{
-				steps_size_released += MAX_PATH_PER_STEP * sizeof(unsigned int);
-				free(board->step[s].vpath);
-			}
-			else
-			{
-				steps_size_released += (MAX_PATH_PER_STEP - board->step[s].vpaths) * sizeof(unsigned int);
-				unsigned int *ph = board->step[s].vpath;
-				board->step[s].vpath = malloc(board->step[s].vpaths * sizeof(unsigned int));
-				for (int ih = 0 ; ih < board->step[s].vpaths ; ih++)
-				{
-					board->step[s].vpath[ih] = ph[ih];
-				}
-				free(ph);
-			}
+			steps_size_released += MAX_PATH_PER_STEP * sizeof(unsigned int);
+			free(board->step[s].hpath);
 		}
-		printf("debug.steps_released    = %10ld  MB\n", steps_size_released / ONE_MILLION);
-		printf("debug.total_released    = %10ld  MB\n", (paths_size_released+slots_size_released+steps_size_released) / ONE_MILLION);
-		unsigned long ul_total_allocated = (size_slots+size_steps+size_hpaths+size_vpaths-paths_size_released-slots_size_released-steps_size_released) / ONE_MILLION;
-		printf("debug.total_allocated   = %10ld  MB\n", ul_total_allocated);
+		else
+		{
+			steps_size_released += (MAX_PATH_PER_STEP - board->step[s].hpaths) * sizeof(unsigned int);
+			unsigned int *ph = board->step[s].hpath;
+			board->step[s].hpath = malloc(board->step[s].hpaths * sizeof(unsigned int));
+			if (board->step[s].hpath == NULL)
+			{
+				printf("cannot reallocate step hpath array, step = %d\n", s);
+				exit(-1);
+			}
+			for (int ih = 0 ; ih < board->step[s].hpaths ; ih++)
+			{
+				board->step[s].hpath[ih] = ph[ih];
+			}
+			free(ph);
+		}
+		//---------
+		if (board->step[s].vpaths == 0)
+		{
+			steps_size_released += MAX_PATH_PER_STEP * sizeof(unsigned int);
+			free(board->step[s].vpath);
+		}
+		else
+		{
+			steps_size_released += (MAX_PATH_PER_STEP - board->step[s].vpaths) * sizeof(unsigned int);
+			unsigned int *ph = board->step[s].vpath;
+			board->step[s].vpath = malloc(board->step[s].vpaths * sizeof(unsigned int));
+			if (board->step[s].vpath == NULL)
+			{
+				printf("cannot reallocate step vpath array, step = %d\n", s);
+				exit(-1);
+			}
+			for (int ih = 0 ; ih < board->step[s].vpaths ; ih++)
+			{
+				board->step[s].vpath[ih] = ph[ih];
+			}
+			free(ph);
+		}
+	}
+	printf("debug.steps_released    = %10ld  MB\n", steps_size_released / ONE_MILLION);
+	printf("debug.total_released    = %10ld  MB\n", (paths_size_released+slots_size_released+steps_size_released) / ONE_MILLION);
+	unsigned long ul_total_allocated = (size_slots+size_steps+size_hpaths+size_vpaths-paths_size_released-slots_size_released-steps_size_released) / ONE_MILLION;
+	printf("debug.total_allocated   = %10ld  MB\n", ul_total_allocated);
 
 	return ul_total_allocated;
 }

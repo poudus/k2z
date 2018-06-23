@@ -33,3 +33,4 @@ bool LoadPlayerParameters(PGconn *pgConn, int player, PLAYER_PARAMETERS *pp);
 
 bool UpdatePlayerWin(PGconn *pgConn, int player, double gain);
 bool UpdatePlayerLoss(PGconn *pgConn, int player, double loss);
+bool UpdatePlayerDraw(PGconn *pgConn, int player, double gl);
