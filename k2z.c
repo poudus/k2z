@@ -45,7 +45,10 @@ struct timeval t0, t_end;
 		state_to->vertical.pegs, state_to->vertical.links, 100.0 * state_to->vertical.count / state_to->vertical.waves);
 }
 
-void eval_orientation(BOARD *board, STATE *state, char orientation, double lambda_decay, double wpegs, double wlinks, double wzeta, bool btracks)
+// ==================
+// eval_orientation()
+// ==================
+double eval_orientation(BOARD *board, STATE *state, char orientation, double lambda_decay, double wpegs, double wlinks, double wzeta, bool btracks)
 {
 struct timeval t0, t_end, t_lambda_field;
 FIELD *player = NULL, *opponent = NULL;
@@ -72,6 +75,99 @@ FIELD *player = NULL, *opponent = NULL;
 	gettimeofday(&t_end, NULL);
 
 	printf("eval %c = %6.2f %%   (%6.2f ms, LF = %6.2f)\n", orientation, score, duration(&t0, &t_end), duration(&t0, &t_lambda_field));
+
+	return score;
+}
+
+// ==================
+// think()
+// ==================
+int think(BOARD *board, STATE *current_state, char orientation, int depth, int max_moves,
+			double lambda_decay, double opponent_decay, double wpegs, double wlinks, double wzeta)
+{
+int	sid = 0;
+TRACK zemoves[1024];
+
+	eval_orientation(board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, true);
+	int nb_moves = state_moves(board, current_state, orientation, opponent_decay, &zemoves[0]);
+
+	if (depth == 0)
+	{
+		sid = zemoves[rand() % max_moves].idx;
+	}
+	else if (depth == 1)
+	{
+		STATE ns;
+		double best_eval = 0.0;
+		int best_move = 0;
+		for (int im = 0 ; im < max_moves ; im++)
+		{
+			init_state(&ns, board->horizontal.paths, board->vertical.paths, true);
+
+			move(board, current_state, &ns, zemoves[im].idx, orientation);
+			double eval1 = eval_orientation(board, &ns, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+printf("T1  %2d/%2d : %4d/%s   %5.2f %%\n", im, max_moves, zemoves[im].idx, board->slot[zemoves[im].idx].code, eval1);
+			if (eval1 > best_eval)
+			{
+				best_eval = eval1;
+				best_move = im;
+				sid = zemoves[best_move].idx;
+			}
+			free_state(&ns);
+		}
+printf("T1  BEST    %4d/%s : %5.2f %%\n", zemoves[best_move].idx, board->slot[zemoves[best_move].idx].code, best_eval);
+	}
+	else if (depth == 2)
+	{
+		TRACK zemoves2[1024];
+		STATE ns1;
+		double best_eval1 = 0.0;
+		int best_move = 0, best_move2 = 0;
+		for (int im = 0 ; im < max_moves ; im++)
+		{
+			STATE ns2;
+			init_state(&ns1, board->horizontal.paths, board->vertical.paths, true);
+			move(board, current_state, &ns1, zemoves[im].idx, orientation);
+			double eval1 = eval_orientation(board, &ns1, orientation, lambda_decay, wpegs, wlinks, wzeta, true);
+printf("T2  %2d/%2d : %4d/%s   %5.2f %%\n", im, max_moves, zemoves[im].idx, board->slot[zemoves[im].idx].code, eval1);
+
+			char opp_orientation = 'H';
+			if (orientation == 'H')
+				opp_orientation = 'V';
+			int nb_moves2 = state_moves(board, &ns1, opp_orientation, opponent_decay, &zemoves2[0]);
+			double worst_eval2 = 100.0;
+			best_move2 = 0;
+			for (int im2 = 0 ; im2 < max_moves ; im2++)
+			{
+				init_state(&ns2, board->horizontal.paths, board->vertical.paths, true);
+				move(board, &ns1, &ns2, zemoves2[im2].idx, opp_orientation);
+				double eval2 = eval_orientation(board, &ns2, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+printf("T22 %2d/%2d : %4d/%s   %5.2f %%\n", im2, max_moves, zemoves2[im2].idx, board->slot[zemoves2[im2].idx].code, eval2);
+				if (eval2 < worst_eval2)
+				{
+					worst_eval2 = eval2;
+					best_move2 = im2;
+				}
+				free_state(&ns2);
+				if (worst_eval2 < best_eval1)
+				{
+printf("T22 BREAK   %5.2f %%  <  %5.2f %%  im2 = %d / %d\n", worst_eval2, best_eval1, im2, max_moves);
+					break;
+				}
+			}
+printf("T22 WORST   %4d/%s : %5.2f %%\n", zemoves2[best_move2].idx, board->slot[zemoves2[best_move2].idx].code, worst_eval2);
+			eval1 = worst_eval2;
+			if (eval1 > best_eval1)
+			{
+				best_eval1 = eval1;
+				best_move = im;
+				sid = zemoves[best_move].idx;
+			}
+			free_state(&ns1);
+		}
+printf("T2  BEST    %4d/%s : %5.2f %%\n", zemoves[best_move].idx, board->slot[zemoves[best_move].idx].code, best_eval1);
+	}
+	return sid;
 }
 
 int parse_slot(BOARD *board, char *pslot)
@@ -91,12 +187,12 @@ double EloExpectedResult(double r1, double r2)
 //
 int main(int argc, char* argv[])
 {
-int depth = 2, width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1;
-int hp_min = 0, hp_max = 50;
-int vp_min = 0, vp_max = 50;
+int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2;
+int hp_min = 100, hp_max = 120;
+int vp_min = 205, vp_max = 211;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
 double lambda_decay = 0.8, opponent_decay = 0.8;
-struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session;
+struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
 BOARD board;
 TRACK zemoves[512];
 char buffer_error[512], database_name[32];
@@ -219,29 +315,35 @@ PGconn *pgConn = NULL;
 				}
 				else if (strcmp("play", action) == 0)
 				{
-					eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, true);
-					int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
-					int idx_move = rand() % max_moves;
-					TRACK *pmove = &zemoves[idx_move];
+					int depth = 0;
+					if (strlen(parameters) > 0)
+						depth = atoi(parameters);
+
+		int msid = think(&board, current_state, orientation, depth, max_moves, lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
+
 					if (orientation == 'H')
 					{
-						move(&board, &state_h, &state_v, pmove->idx, orientation);
+						move(&board, &state_h, &state_v, msid, orientation);
 						orientation = 'V';
 						current_state = &state_v;
 					}
 					else
 					{
-						move(&board, &state_v, &state_h, pmove->idx, orientation);
+						move(&board, &state_v, &state_h, msid, orientation);
 						orientation = 'H';
 						current_state = &state_h;
 					}
-					strcat(current_game_moves, board.slot[pmove->idx].code);
+					strcat(current_game_moves, board.slot[msid].code);
 					move_number++;
-					printf("move %d: [%d] %d/%s played\n", move_number, idx_move, pmove->idx, board.slot[pmove->idx].code);
+					printf("move %d: %d/%s played\n", move_number, msid, board.slot[msid].code);
 					eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
 				}
 				else if (strcmp("game", action) == 0)
 				{
+					int depth = 0;
+					if (strlen(parameters) > 0)
+						depth = atoi(parameters);
+
 					bool end_of_game = false;
 					char winner = ' ', reason = '?';
 					gettimeofday(&t0_game, NULL);
@@ -284,24 +386,23 @@ PGconn *pgConn = NULL;
 						}
 						if (!end_of_game)
 						{
-							int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
-							int idx_move = rand() % max_moves;
-							TRACK *pmove = &zemoves[idx_move];
+		int msid = think(&board, current_state, orientation, depth, max_moves, lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
+
 							if (orientation == 'H')
 							{
-								move(&board, &state_h, &state_v, pmove->idx, orientation);
+								move(&board, &state_h, &state_v, msid, orientation);
 								orientation = 'V';
 								current_state = &state_v;
 							}
 							else
 							{
-								move(&board, &state_v, &state_h, pmove->idx, orientation);
+								move(&board, &state_v, &state_h, msid, orientation);
 								orientation = 'H';
 								current_state = &state_h;
 							}
-							strcat(current_game_moves, board.slot[pmove->idx].code);
+							strcat(current_game_moves, board.slot[msid].code);
 							move_number++;
-							printf("move %d: [%d] %d/%s played\n", move_number, idx_move, pmove->idx, board.slot[pmove->idx].code);
+							printf("move %d:  %d/%s played\n", move_number, msid, board.slot[msid].code);
 							eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
 							printf("---------- next move %c ----------\n", orientation);
 						}
@@ -316,7 +417,7 @@ printf("saved as game_id = %d\n", game_id);
 				}
 				else if (strcmp("session", action) == 0)
 				{
-					int nb_loops = 100;
+					int nb_loops = 100, msh = 0, msv = 0;
 					if (strlen(parameters) > 0)
 						nb_loops = atoi(parameters);
 					bool end_of_game = false;
@@ -325,6 +426,7 @@ printf("saved as game_id = %d\n", game_id);
 					gettimeofday(&t0_session, NULL);
 					for (int iloop = 1 ; iloop <= nb_loops ; iloop++)
 					{
+						msh = msv = 0;
 						while (!LoadPlayerParameters(pgConn, hp_min + rand() % (hp_max - hp_min), &hpp));
 						while (!LoadPlayerParameters(pgConn, vp_min + rand() % (vp_max - vp_min), &vpp) || vpp.pid == hpp.pid);
 						// reset
@@ -345,6 +447,7 @@ printf("saved as game_id = %d\n", game_id);
 printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.pid, vpp.pid);
 						while (!end_of_game)
 						{
+							gettimeofday(&t_begin, NULL);
 							if (move_number >= 60)
 							{
 								printf("DRAW 60 moves\n");
@@ -356,7 +459,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 							{
 								if (orientation == 'H')
 								{
-									eval_orientation(&board, current_state, orientation, hpp.lambda_decay, wpegs, wlinks, wzeta, true);
+							eval_orientation(&board, current_state, orientation, hpp.lambda_decay, wpegs, wlinks, wzeta, true);
 									if (empty_field(&state_h.horizontal))
 									{
 										printf("H resign\n");
@@ -374,7 +477,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 								}
 								else
 								{
-									eval_orientation(&board, current_state, orientation, vpp.lambda_decay, wpegs, wlinks, wzeta, true);
+							eval_orientation(&board, current_state, orientation, vpp.lambda_decay, wpegs, wlinks, wzeta, true);
 									if (empty_field(&state_v.vertical))
 									{
 										printf("V resign\n");
@@ -398,13 +501,11 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 								{
 									if (move_number == 0)
 									{
-										msid = find_xy(&board, 2+rand()%(width-4), 2+rand()%(height-4));
+									msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*offset));
 									}
 									else
 									{
-										int nb_moves = state_moves(&board, current_state, orientation, hpp.opp_decay, &zemoves[0]);
-										idx_move = rand() % hpp.max_moves;
-										msid = zemoves[idx_move].idx;
+		msid = think(&board, current_state, orientation, hpp.depth, hpp.max_moves, hpp.lambda_decay, hpp.opp_decay, wpegs, wlinks, wzeta);
 									}
 									move(&board, &state_h, &state_v, msid, orientation);
 									orientation = 'V';
@@ -412,33 +513,36 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 								}
 								else
 								{
-									int nb_moves = state_moves(&board, current_state, orientation, vpp.opp_decay, &zemoves[0]);
-								//printf("winner = %c  reason = %c  vpp.max_moves = %d\n", winner, reason, vpp.max_moves);
-									idx_move = rand() % vpp.max_moves;
-								//printf("nb_moves = %d  idx_move = %d\n", nb_moves, idx_move);
-									msid = zemoves[idx_move].idx;
+		msid = think(&board, current_state, orientation, vpp.depth, vpp.max_moves, vpp.lambda_decay, vpp.opp_decay, wpegs, wlinks, wzeta);
 									move(&board, &state_v, &state_h, msid, orientation);
 									orientation = 'H';
 									current_state = &state_h;
 								}
 								strcat(current_game_moves, board.slot[msid].code);
 								move_number++;
-								printf("play %d: [%d] %d/%s\n", move_number, idx_move, msid, board.slot[msid].code);
+								printf("play %d: %d/%s\n", move_number, msid, board.slot[msid].code);
 								eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
 								printf("---------- next move %c ----------\n", orientation);
 							}
+							gettimeofday(&t_end, NULL);
+							if (orientation == 'H')
+								msv += duration(&t_begin, &t_end);
+							else
+								msh += duration(&t_begin, &t_end);
 						}
-						//EOG
+						// ---
+						// EOG
+						// ---
 						gettimeofday(&tend_game, NULL);
-						printf("==== %d/%d ==== winner %c  reason=%c  in %d moves : %s\n", iloop, nb_loops, winner, reason, move_number, current_game_moves);
+						printf("==== %d/%d ==== winner %c  reason=%c  in %d moves : %s\n",
+							iloop, nb_loops, winner, reason, move_number, current_game_moves);
 						printf("duration = %6d sec\n", (int)duration(&t0_game, &tend_game)/1000);
-						printf("average  = %6d ms/move\n", (int)duration(&t0_game, &tend_game)/move_number);
 
 						if (winner == 'H')
 						{
 							double expr = EloExpectedResult(hpp.rating, vpp.rating);
 							double gl = 10.0 * (1.0 - expr);
-							printf("H  hpr = %.2f  vpr = %.2f   gl = %.2f   expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
+							printf("%.2f  vs  %.2f     gl = %.2f    expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
 							UpdatePlayerWin(pgConn, hpp.pid, gl);
 							UpdatePlayerLoss(pgConn, vpp.pid, gl);
 						}
@@ -446,7 +550,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 						{
 							double expr = EloExpectedResult(vpp.rating, hpp.rating);
 							double gl = 10.0 * (1.0 - expr);
-							printf("V  hpr = %.2f  vpr = %.2f   gl = %.2f   expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
+							printf("%.2f  vs  %.2f     gl = %.2f    expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
 							UpdatePlayerWin(pgConn, vpp.pid, gl);
 							UpdatePlayerLoss(pgConn, hpp.pid, gl);
 						}
@@ -454,17 +558,24 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 						{
 							double expr = EloExpectedResult(hpp.rating, vpp.rating);
 							double hgl = 10.0 * (0.5 - expr);
-							printf("D  hpr = %.2f  vpr = %.2f   hgl = %.2f   hexpr = %.4f\n", hpp.rating, vpp.rating, hgl, expr);
+							printf("%.2f  vs  %.2f    hgl = %.2f    hexpr = %.4f\n", hpp.rating, vpp.rating, hgl, expr);
 							UpdatePlayerDraw(pgConn, hpp.pid, hgl);
 							UpdatePlayerDraw(pgConn, vpp.pid, -hgl);
 						}
 
-						int mdur = duration(&t0_game, &tend_game)/move_number;
+						int mh = msh/((move_number+1)/2);
+						int mv = msv/(move_number/2);
+						printf("average H = %6d ms/move\n", mh);
+						printf("average V = %6d ms/move\n", mv);
+
 						if (strlen(current_game_moves) > 128)
 							current_game_moves[128] = 0;
-						int game_id = insertGame(pgConn, hpp.pid, vpp.pid, current_game_moves, winner, reason, duration(&t0_game, &tend_game), mdur, mdur);
-						printf("saved as game_id = %d\n\n", game_id);
+				int game_id = insertGame(pgConn, hpp.pid, vpp.pid, current_game_moves, winner, reason, duration(&t0_game, &tend_game), mh, mv);
+						printf("saved as  = %6d\n\n", game_id);
 					}
+					// ---
+					// EOS
+					// ---
 					gettimeofday(&tend_session, NULL);
 					printf("===== End of Session: %d games in %.2f sec, avg = %.2f sec/game\n",
 					nb_loops, duration(&t0_session, &tend_session)/1000, 1.0*duration(&t0_session, &tend_session)/(1000.0*nb_loops));
@@ -496,6 +607,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 							else if (strcmp(parameters, "hp-max") == 0) hp_max = ivalue;
 							else if (strcmp(parameters, "vp-min") == 0) vp_min = ivalue;
 							else if (strcmp(parameters, "vp-max") == 0) vp_max = ivalue;
+							else if (strcmp(parameters, "offset") == 0) offset = ivalue;
 							else bp = false;
 							if (bp) printf("parameter %s set to %6.3f\n", parameters, dvalue);
 						}
@@ -513,6 +625,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 					printf("hp-max         = %3d\n", hp_max);
 					printf("vp-min         = %3d\n", vp_min);
 					printf("vp-max         = %3d\n", vp_max);
+					printf("offset         = %2d\n", offset);
 				}
 				else if (strcmp("position", action) == 0)
 				{
