@@ -85,7 +85,7 @@ FIELD *player = NULL, *opponent = NULL;
 int think(BOARD *board, STATE *current_state, char orientation, int depth, int max_moves,
 			double lambda_decay, double opponent_decay, double wpegs, double wlinks, double wzeta)
 {
-int	sid = 0;
+int	sid = -1;
 TRACK zemoves[1024];
 
 	eval_orientation(board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, true);
@@ -98,8 +98,8 @@ TRACK zemoves[1024];
 	else if (depth == 1)
 	{
 		STATE ns;
-		double best_eval = 0.0;
-		int best_move = 0;
+		double best_eval = -1.0;
+		int best_move = -1;
 		for (int im = 0 ; im < max_moves ; im++)
 		{
 			init_state(&ns, board->horizontal.paths, board->vertical.paths, true);
@@ -121,8 +121,8 @@ printf("T1  BEST    %4d/%s : %5.2f %%\n", zemoves[best_move].idx, board->slot[ze
 	{
 		TRACK zemoves2[1024];
 		STATE ns1;
-		double best_eval1 = 0.0;
-		int best_move = 0, best_move2 = 0;
+		double best_eval1 = -1.0;
+		int best_move = -1, best_move2 = -1;
 		for (int im = 0 ; im < max_moves ; im++)
 		{
 			STATE ns2;
@@ -136,7 +136,7 @@ printf("T2  %2d/%2d : %4d/%s   %5.2f %%\n", im, max_moves, zemoves[im].idx, boar
 				opp_orientation = 'V';
 			int nb_moves2 = state_moves(board, &ns1, opp_orientation, opponent_decay, &zemoves2[0]);
 			double worst_eval2 = 100.0;
-			best_move2 = 0;
+			best_move2 = -1;
 			for (int im2 = 0 ; im2 < max_moves ; im2++)
 			{
 				init_state(&ns2, board->horizontal.paths, board->vertical.paths, true);
@@ -188,8 +188,8 @@ double EloExpectedResult(double r1, double r2)
 int main(int argc, char* argv[])
 {
 int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2;
-int hp_min = 100, hp_max = 120;
-int vp_min = 205, vp_max = 211;
+int hp_min = 3, hp_max = 8;
+int vp_min = 3, vp_max = 8;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
 double lambda_decay = 0.8, opponent_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
@@ -427,8 +427,8 @@ printf("saved as game_id = %d\n", game_id);
 					for (int iloop = 1 ; iloop <= nb_loops ; iloop++)
 					{
 						msh = msv = 0;
-						while (!LoadPlayerParameters(pgConn, hp_min + rand() % (hp_max - hp_min), &hpp));
-						while (!LoadPlayerParameters(pgConn, vp_min + rand() % (vp_max - vp_min), &vpp) || vpp.pid == hpp.pid);
+						while (!LoadPlayerParameters(pgConn, hp_min + rand() % (hp_max - hp_min + 1), &hpp));
+						while (!LoadPlayerParameters(pgConn, vp_min + rand() % (vp_max - vp_min + 1), &vpp) || vpp.pid == hpp.pid);
 						// reset
 						current_state = &state_h;
 						init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
