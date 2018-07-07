@@ -188,13 +188,8 @@ double EloExpectedResult(double r1, double r2)
 int main(int argc, char* argv[])
 {
 int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2;
-<<<<<<< HEAD
 int hp_min = 1, hp_max = 9;
 int vp_min = 1, vp_max = 9;
-=======
-int hp_min = 3, hp_max = 8;
-int vp_min = 3, vp_max = 8;
->>>>>>> cbe7ca3f0a929b4ce34d0b36fcfe848acd512000
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
 double lambda_decay = 0.8, opponent_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
