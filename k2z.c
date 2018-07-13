@@ -122,7 +122,7 @@ printf("T1  BEST    %4d/%s : %5.2f %%\n", zemoves[best_move].idx, board->slot[ze
 		TRACK zemoves2[1024];
 		STATE ns1;
 		double best_eval1 = -1.0;
-		int best_move = -1, best_move2 = -1;
+		int best_move = -1, best_move2 = -1, nb_break2 = 0;
 		for (int im = 0 ; im < max_moves ; im++)
 		{
 			STATE ns2;
@@ -152,6 +152,7 @@ printf("T22 %2d/%2d : %4d/%s   %5.2f %%\n", im2, max_moves, zemoves2[im2].idx, b
 				if (worst_eval2 < best_eval1)
 				{
 printf("T22 BREAK   %5.2f %%  <  %5.2f %%  im2 = %d / %d\n", worst_eval2, best_eval1, im2, max_moves);
+					nb_break2 += (max_moves - im2 -1);
 					break;
 				}
 			}
@@ -165,10 +166,20 @@ printf("T22 WORST   %4d/%s : %5.2f %%\n", zemoves2[best_move2].idx, board->slot[
 			}
 			free_state(&ns1);
 		}
-printf("T2  BEST    %4d/%s : %5.2f %%\n", zemoves[best_move].idx, board->slot[zemoves[best_move].idx].code, best_eval1);
+printf("T2  BEST    %4d/%s : %5.2f %%    pruning = %5.2f %%\n",
+	zemoves[best_move].idx, board->slot[zemoves[best_move].idx].code, best_eval1, 100.0 * nb_break2 / (max_moves * max_moves));
 	}
 	return sid;
 }
+// ==================
+// alpha_beta()
+// ==================
+double alpha_beta(BOARD *board, STATE *current_state, char orientation, int depth, int max_moves, double alpha, double beta, bool max_player,
+			double lambda_decay, double opponent_decay, double wpegs, double wlinks, double wzeta)
+{
+	return 0.0;
+}
+
 
 int parse_slot(BOARD *board, char *pslot)
 {
@@ -188,8 +199,8 @@ double EloExpectedResult(double r1, double r2)
 int main(int argc, char* argv[])
 {
 int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2;
-int hp_min = 1, hp_max = 9;
-int vp_min = 1, vp_max = 9;
+int hp_min = 4, hp_max = 9;
+int vp_min = 4, vp_max = 9;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
 double lambda_decay = 0.8, opponent_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
@@ -198,7 +209,7 @@ TRACK zemoves[512];
 char buffer_error[512], database_name[32];
 PGconn *pgConn = NULL;
 
-	printf("K2Z.engine-version=0.1\n");
+	printf("K2Z.engine-version=1.2\n");
 	gettimeofday(&t0, NULL);
 	srand(t0.tv_sec);
 	if (argc > 1 && strlen(argv[1]) == 5)
