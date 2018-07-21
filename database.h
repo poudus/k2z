@@ -29,6 +29,7 @@ double pgGetDouble(PGconn *pgConn, const char *pQuery);
 char *formatTS(long long ts, char *buffer);
 
 int insertGame(PGconn *pgConn, int hp, int vp, char *moves, char winner, char reason, int duration, int ht, int vt);
+bool LoadGame(PGconn *pgConn, int game, char *moves);
 bool LoadPlayerParameters(PGconn *pgConn, int player, PLAYER_PARAMETERS *pp);
 
 bool UpdatePlayerWin(PGconn *pgConn, int player, double gain);

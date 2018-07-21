@@ -391,6 +391,21 @@ int insertGame(PGconn *pgConn, int hp, int vp, char *moves, char winner, char re
 	return game_id;
 }
 
+bool LoadGame(PGconn *pgConn, int game, char *moves)
+{
+char query[1024];
+
+	sprintf(query, "select moves from k2s.game where id = %d", game);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL && PQntuples(pgres) == 1)
+	{
+		strcpy(moves, PQgetvalue(pgres, 0, 0));
+		PQclear(pgres);
+		return true;
+	} else return false;
+}
+
 //====================================================
 //	PLAYER
 //====================================================
@@ -411,6 +426,7 @@ char query[1024];
 		ppp->max_moves = atoi(PQgetvalue(pgres, 0, 2));
 		ppp->depth = atoi(PQgetvalue(pgres, 0, 3));
 		ppp->rating = atof(PQgetvalue(pgres, 0, 4));
+		PQclear(pgres);
 		return true;
 	} else return false;
 }

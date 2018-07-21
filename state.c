@@ -153,10 +153,14 @@ int lowest_lambda = 99;
 	}
 	else if (lowest_lambda == 1)
 	{
-		if (dscore > 99.9) dscore = 99.9;
-		else if (dscore < 0.1) dscore = 0.1;
+		if (dscore > 99.0) dscore = 99.0;
+		else if (dscore < 1.0) dscore = 1.0;
 	}
-	//if (lowest_lambda == 2 && dscore > 98.0) dscore = 98.0;
+	else if (lowest_lambda == 2)
+	{
+		if (dscore > 98.0) dscore = 98.0;
+		else if (dscore < 2.0) dscore = 2.0;
+	}
 	if (dscore > 100.0 || dscore < 0.0)
 	{
 		printf("lowest_lambda = %2d  score = %6.2f\n", lowest_lambda, dscore);
