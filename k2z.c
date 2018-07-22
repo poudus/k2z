@@ -205,13 +205,15 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 		STATE new_state;
 		double evab = 0.0, dv0 = eval_orientation(board, state, player_orientation, lambda_decay, wpegs, wlinks, wzeta, true);
 		int nb_moves = state_moves(board, state, move_orientation, opponent_decay, &zemoves[0]);
+		if (nb_moves < max_moves)
+			printf("TOO FEW MOVES !!!!!!!!!!\n");
 		char next_orientation = 'H';
 		if (move_orientation == 'H') next_orientation = 'V';
 
 		if (max_player)
 		{
 			strcpy(minmax, "MAX");
-			dv = -1.0;
+			dv = -999.0;
 			for (int im = 0 ; im < max_moves ; im++)
 			{
 				init_state(&new_state, board->horizontal.paths, board->vertical.paths, true);
@@ -222,7 +224,7 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 					evab = alpha_beta(board, &new_state, next_orientation, player_orientation,
 						depth-1, max_moves, alpha, beta, false,
 						lambda_decay, opponent_decay, wpegs, wlinks, wzeta, &dsid, zemoves[im].idx);
-				else evab = 100.0;
+				else evab = 100.0 + depth;
 
 				if (evab > dv)
 				{
@@ -233,11 +235,12 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 				free_state(&new_state);
 				if (alpha >= beta) break; // beta cut-off
 			}
+			//if (dv >= 100.0) dv = 100.0 + depth;
 		}
 		else
 		{
 			strcpy(minmax, "min");
-			dv = 101.0;
+			dv = 999.0;
 			for (int im = 0 ; im < max_moves ; im++)
 			{
 				init_state(&new_state, board->horizontal.paths, board->vertical.paths, true);
@@ -248,7 +251,7 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 					evab = alpha_beta(board, &new_state, next_orientation, player_orientation,
 						depth-1, max_moves, alpha, beta, true,
 						lambda_decay, opponent_decay, wpegs, wlinks, wzeta, &dsid, zemoves[im].idx);
-				else evab = 0.0;
+				else evab = 0.0 - depth;
 
 				if (evab < dv)
 				{
@@ -259,9 +262,10 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 				free_state(&new_state);
 				if (alpha >= beta) break; // alpha cut-off
 			}
+			//if (dv <= 0.0) dv = 0.0 - depth;
 		}
-printf("ab[%c:%d%c/%2d]  %s -> %4d/%s = %6.2f %%   { a = %7.2f  b = %7.2f }  %s\n",
-	player_orientation, depth, move_orientation, max_moves, szmov, *sid, board->slot[*sid].code, dv, alpha, beta, minmax);
+		printf("ab[%c:%d%c/%2d]  %s -> %4d/%s = %6.2f %%   { a = %7.2f  b = %7.2f }  %s\n",
+			player_orientation, depth, move_orientation, max_moves, szmov, *sid, board->slot[*sid].code, dv, alpha, beta, minmax);
 	}
 	return dv;
 }
