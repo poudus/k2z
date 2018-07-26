@@ -182,7 +182,7 @@ static int gst_calls = 0;
 double alpha_beta(BOARD *board, STATE *state, char move_orientation, char player_orientation, int depth, int max_moves, double alpha, double beta, bool max_player,
 			double lambda_decay, double opponent_decay, double wpegs, double wlinks, double wzeta, int* sid, int zmove)
 {
-double dv = 50.0;
+double dv = 50.0, d0 = 0.0;
 int dsid = 0;
 TRACK zemoves[1024];
 char minmax[8], szmov[32];
@@ -206,7 +206,7 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 		double evab = 0.0, dv0 = eval_orientation(board, state, player_orientation, lambda_decay, wpegs, wlinks, wzeta, true);
 		int nb_moves = state_moves(board, state, move_orientation, opponent_decay, &zemoves[0]);
 		if (nb_moves < max_moves)
-			printf("TOO FEW MOVES !!!!!!!!!!\n");
+			printf("TOO-FEW-MOVES !!!!!!!!!!\n");
 		char next_orientation = 'H';
 		if (move_orientation == 'H') next_orientation = 'V';
 
@@ -218,7 +218,10 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 			{
 				init_state(&new_state, board->horizontal.paths, board->vertical.paths, true);
 				move(board, state, &new_state, zemoves[im].idx, move_orientation);
-				double d0 = eval_orientation(board, &new_state, player_orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+				if (depth > 1)
+					d0 = eval_orientation(board, &new_state, player_orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+				else
+					d0 = 0.0;
 
 				if (d0 < 100.0)
 					evab = alpha_beta(board, &new_state, next_orientation, player_orientation,
@@ -245,7 +248,10 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 			{
 				init_state(&new_state, board->horizontal.paths, board->vertical.paths, true);
 				move(board, state, &new_state, zemoves[im].idx, move_orientation);
-				double d0 = eval_orientation(board, &new_state, player_orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+				if (depth > 1)
+					d0 = eval_orientation(board, &new_state, player_orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+				else
+					d0 = 100.0;
 
 				if (d0 > 0.0)
 					evab = alpha_beta(board, &new_state, next_orientation, player_orientation,
@@ -330,7 +336,7 @@ TRACK zemoves[512];
 char buffer_error[512], database_name[32];
 PGconn *pgConn = NULL;
 
-	printf("K2Z.engine-version=1.2\n");
+	printf("K2Z.engine-version=1.3\n");
 	gettimeofday(&t0, NULL);
 	srand(t0.tv_sec);
 	if (argc > 1 && strlen(argv[1]) == 5)
