@@ -621,12 +621,18 @@ PGconn *pgConn = NULL;
 						winner = '?';
 						reason = 'D';
 					}
-printf("========== winner %c  reason=%c  in %d moves : %s  duration = %5.2f s  average = %5.1f ms/move\n",
-	winner, reason, move_number, current_game_moves, duration(&t0_game, &tend_game)/1000, duration(&t0_game, &tend_game)/move_number);
+					printf("========== winner %c  reason=%c  in %d moves : %s  duration = %5.2f s  average = %5.1f ms/move\n",
+						winner, reason, move_number, current_game_moves,
+						duration(&t0_game, &tend_game)/1000, duration(&t0_game, &tend_game)/move_number);
 
-int game_id = insertGame(pgConn, 0, 0, current_game_moves, winner, reason, duration(&t0_game, &tend_game), 102, 201);
-printf("saved as game_id = %d\n", game_id);
+					int game_id = insertGame(pgConn, 0, 0, current_game_moves, winner, reason, duration(&t0_game, &tend_game), 0, 0);
+					printf("saved as game_id = %d\n", game_id);
 
+				}
+				else if (strcmp("save", action) == 0)
+				{
+					int game_id = insertGame(pgConn, 0, 0, current_game_moves, orientation, '?', 0, 0, 0);
+					printf("saved as game_id = %d\n", game_id);
 				}
 				else if (strcmp("session", action) == 0)
 				{
