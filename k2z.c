@@ -204,9 +204,12 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 	{
 		STATE new_state;
 		double evab = 0.0, dv0 = eval_orientation(board, state, player_orientation, lambda_decay, wpegs, wlinks, wzeta, true);
-		int nb_moves = state_moves(board, state, move_orientation, opponent_decay, &zemoves[0]);
+		int mm = 0, nb_moves = state_moves(board, state, move_orientation, opponent_decay, &zemoves[0]);
 		if (nb_moves < max_moves)
+		{
 			printf("TOO-FEW-MOVES !!!!!!!!!!\n");
+			mm = nb_moves;
+		} else mm = max_moves;
 		char next_orientation = 'H';
 		if (move_orientation == 'H') next_orientation = 'V';
 
@@ -214,7 +217,7 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 		{
 			strcpy(minmax, "MAX");
 			dv = -999.0;
-			for (int im = 0 ; im < max_moves ; im++)
+			for (int im = 0 ; im < mm ; im++)
 			{
 				init_state(&new_state, board->horizontal.paths, board->vertical.paths, true);
 				move(board, state, &new_state, zemoves[im].idx, move_orientation);
@@ -244,7 +247,7 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 		{
 			strcpy(minmax, "min");
 			dv = 999.0;
-			for (int im = 0 ; im < max_moves ; im++)
+			for (int im = 0 ; im < mm ; im++)
 			{
 				init_state(&new_state, board->horizontal.paths, board->vertical.paths, true);
 				move(board, state, &new_state, zemoves[im].idx, move_orientation);
@@ -271,7 +274,7 @@ printf("ab[%c:%d%c/%2d]  %s = %6.2f %%\n", player_orientation, depth, player_ori
 			//if (dv <= 0.0) dv = 0.0 - depth;
 		}
 		printf("ab[%c:%d%c/%2d]  %s -> %4d/%s = %6.2f %%   { a = %7.2f  b = %7.2f }  %s\n",
-			player_orientation, depth, move_orientation, max_moves, szmov, *sid, board->slot[*sid].code, dv, alpha, beta, minmax);
+			player_orientation, depth, move_orientation, mm, szmov, *sid, board->slot[*sid].code, dv, alpha, beta, minmax);
 	}
 	return dv;
 }
@@ -300,7 +303,7 @@ TRACK zemoves[1024];
 		double dms = duration(&t0, &t_end) / 1000.0;
 
 		int max_pos = pow(max_moves, depth);
-		printf("alpha_beta(%d,%2d)     = %6.2f %%   sid = %4d/%s  duration = %6.2f  sec    prunning = %4.2f %%  %7d/%-8d   %6.2f pos/sec\n",
+		printf("alpha_beta(%d,%2d) = %6.2f %%   sid = %4d/%s  duration = %6.2f  sec    prunning = %4.2f %%  %7d/%-8d   %6.2f pos/sec\n",
 			depth, max_moves, eval, sid, board->slot[sid].code, dms, (double)100.0*(max_pos-gst_calls)/(double)max_pos, gst_calls,
 			max_pos, gst_calls/dms);
 	}
@@ -365,7 +368,8 @@ PGconn *pgConn = NULL;
 	if (ul_allocated > 0)
 	{
 		gettimeofday(&t_init_board, NULL);
-		printf("init.board %8.2f ms        size = %6ld MB  complexity = %10d\n", duration(&t0, &t_init_board), ul_allocated, board.horizontal.paths+board.vertical.paths);
+		printf("init.board %8.2f ms        size = %6ld MB  complexity = %10d\n",
+			duration(&t0, &t_init_board), ul_allocated, board.horizontal.paths+board.vertical.paths);
 
 		STATE state_h, state_v, *current_state;
 		current_state = &state_h;
@@ -513,20 +517,46 @@ PGconn *pgConn = NULL;
 				}
 				else if (strcmp("think", action) == 0)
 				{
-					int depth = 0;
-					if (strlen(parameters) > 0)
+					int depth = 0, plen = strlen(parameters);
+					if (plen > 0)
+					{
+						char *pvalue = NULL;
+						for (int ic = 0 ; ic < plen ; ic++)
+						{
+							if (parameters[ic] == '/')
+							{
+								parameters[ic] = 0;
+								pvalue = &parameters[ic+1];
+							}
+						}
 						depth = atoi(parameters);
-
-	int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves, lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
+						if (pvalue != NULL && *pvalue != 0)
+							max_moves = atoi(pvalue);
+					}
+					int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves,
+							lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
 					printf("think-move(%d)%4d/%s\n", depth, msid, board.slot[msid].code);
 				}
 				else if (strcmp("play", action) == 0)
 				{
-					int depth = 0;
-					if (strlen(parameters) > 0)
+					int depth = 0, plen = strlen(parameters);
+					if (plen > 0)
+					{
+						char *pvalue = NULL;
+						for (int ic = 0 ; ic < plen ; ic++)
+						{
+							if (parameters[ic] == '/')
+							{
+								parameters[ic] = 0;
+								pvalue = &parameters[ic+1];
+							}
+						}
 						depth = atoi(parameters);
-
-	int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves, lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
+						if (pvalue != NULL && *pvalue != 0)
+							max_moves = atoi(pvalue);
+					}
+					int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves,
+						lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
 
 					if (orientation == 'H')
 					{
@@ -547,9 +577,22 @@ PGconn *pgConn = NULL;
 				}
 				else if (strcmp("game", action) == 0)
 				{
-					int depth = 0;
-					if (strlen(parameters) > 0)
+					int depth = 0, plen = strlen(parameters);
+					if (plen > 0)
+					{
+						char *pvalue = NULL;
+						for (int ic = 0 ; ic < plen ; ic++)
+						{
+							if (parameters[ic] == '/')
+							{
+								parameters[ic] = 0;
+								pvalue = &parameters[ic+1];
+							}
+						}
 						depth = atoi(parameters);
+						if (pvalue != NULL && *pvalue != 0)
+							max_moves = atoi(pvalue);
+					}
 
 					bool end_of_game = false;
 					char winner = ' ', reason = '?';
@@ -999,7 +1042,9 @@ if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertica
 				else if (strcmp("help", action) == 0)
 				{
 					printf("\tmove XY\n");
-					printf("\tplay\n");
+					printf("\tthink <depth>/<max-moves>\n");
+					printf("\tplay <depth>/<max-moves>\n");
+					printf("\tgame <depth>/<max-moves>\n");
 					printf("\teval <lambda-decay>\n");
 					printf("\ttracks <lambda-decay>\n");
 					printf("\tmoves <opponent-decay>\n");
