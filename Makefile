@@ -21,7 +21,7 @@ database.o: database.c database.h
 k2s.o: k2s.c database.h
 	gcc -I/usr/include/postgresql -c k2s.c
 	
-all: k2z k2ss
+all: k2z k2s
 
 clean: 
 	rm *.o
