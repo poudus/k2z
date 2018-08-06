@@ -35,3 +35,17 @@ bool LoadPlayerParameters(PGconn *pgConn, int player, PLAYER_PARAMETERS *pp);
 bool UpdatePlayerWin(PGconn *pgConn, int player, double gain);
 bool UpdatePlayerLoss(PGconn *pgConn, int player, double loss);
 bool UpdatePlayerDraw(PGconn *pgConn, int player, double gl);
+
+bool RegisterLive(PGconn *pgConn, int channel, int hp);
+bool JoinLive(PGconn *pgConn, int channel, int vp);
+void PrintLive(PGconn *pgConn, int channel);
+bool DeleteLive(PGconn *pgConn, int channel);
+bool CheckLive(PGconn *pgConn, int channel, char orientation, char *last_move, char *moves);
+bool PlayLive(PGconn *pgConn, int channel, char orientation, char *move, char *moves);
+bool ResignLive(PGconn *pgConn, int channel, char winner, char reason);
+bool CheckResign(PGconn *pgConn, int channel, char orientation);
+bool WinLive(PGconn *pgConn, int channel, char winner, char reason);
+
+
+
+

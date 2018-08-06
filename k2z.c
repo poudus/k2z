@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
+#include <unistd.h>
 #include <sys/time.h>
 
 #include "board.h"
@@ -310,7 +311,7 @@ TRACK zemoves[1024];
 	return sid;
 }
 
-// pare_slot()
+// parse_slot()
 int parse_slot(BOARD *board, char *pslot)
 {
 	if (strlen(pslot) == 2 && isupper((int)pslot[0]) && isupper((int)pslot[1]))
@@ -323,14 +324,143 @@ double EloExpectedResult(double r1, double r2)
 	return 1.0 / (1.0 + pow(10.0, (r2-r1)/400));
 }
 
+double EloDifference(double p)
+{
+	return -400.0 * log10 (1/p - 1);
+}
 //
-// main
+// live
 //
+void GameLive(PGconn *pgConn, BOARD *board, int channel, char orientation, int p, int timeout, int offset)
+{
+bool end_of_game = false;
+char last_move[8], zmove[8], moves[128], winner = ' ', reason = ' ', opp_orientation = 'H';
+int  tick = 0, slot = 0, move_number = 0, depth = 2, max_moves = 20, msid = 0;
+STATE my_state, opp_state;
+double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, lambda_decay = 0.8, opponent_decay = 0.8;
+PLAYER_PARAMETERS pp;
+
+	init_state(&my_state, board->horizontal.paths, board->vertical.paths, true);
+	init_state(&opp_state, board->horizontal.paths, board->vertical.paths, true);
+
+	lambda_field(board, &board->horizontal, &my_state.horizontal, false);
+	lambda_field(board, &board->vertical, &my_state.vertical, false);
+	lambda_field(board, &board->horizontal, &opp_state.horizontal, false);
+	lambda_field(board, &board->vertical, &opp_state.vertical, false);
+
+	if (LoadPlayerParameters(pgConn, p, &pp))
+	{
+		depth = pp.depth;
+		max_moves = pp.max_moves;
+	}
+
+	if (orientation == 'H')
+		opp_orientation = 'V';
+
+	moves[0] = 0;
+	while(!end_of_game)
+	{
+		if (CheckLive(pgConn, channel, orientation, last_move, moves))
+		{
+			if (strlen(moves) > 0)
+			{
+				printf("last move = %s, moves = %s\n", last_move, moves);
+				slot = parse_slot(board, last_move);
+				move(board, &opp_state, &my_state, slot, opp_orientation);
+				move_number++;
+				//-----------
+				double dwq = eval_orientation(board, &my_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+				if ((orientation == 'H' && empty_field(&my_state.horizontal)) || (orientation == 'V' && empty_field(&my_state.vertical)))
+				{
+					printf("%c resign, eval = %6.2f %%\n", orientation, dwq);
+					winner = opp_orientation;
+					reason = 'R';
+					end_of_game = true;
+					ResignLive(pgConn, channel, winner, reason);
+				}
+			}
+			//-----------
+			if (!end_of_game)
+			{
+				if (orientation == 'H' && move_number == 0)
+					msid = find_xy(board, offset+rand()%(board->width-2*offset), offset+rand()%(board->height-2*offset));
+				else
+					msid = think_alpha_beta(board, &my_state, orientation, depth, max_moves,
+						lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
+
+				move(board, &my_state, &opp_state, msid, orientation);
+
+				strcpy(zmove, board->slot[msid].code);
+				move_number++;
+				//-----------
+				if (PlayLive(pgConn, channel, orientation, zmove, moves))
+				{
+					tick = 0;
+					printf("%c played : %s  (%d)\n", orientation, zmove, move_number);
+					//-----------
+					double dwq2 = eval_orientation(board, &my_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+				if ((orientation == 'H' && winning_field(&my_state.horizontal)) || (orientation == 'V' && winning_field(&my_state.vertical)))
+				{
+					printf("%c win, eval = %6.2f %%\n", orientation, dwq2);
+					winner = orientation;
+					reason = 'W';
+					end_of_game = true;
+					WinLive(pgConn, channel, winner, reason);
+				}
+				}
+				else
+				{
+					printf("%c ERROR\n", orientation);
+					reason = 'E';
+					end_of_game = true;
+				}
+			}
+		}
+		else if (CheckResign(pgConn, channel, orientation))
+		{
+			printf("%c win : %c resigned, moves = %s\n", orientation, opp_orientation, moves);
+			winner = orientation;
+			reason = 'R';
+			end_of_game = true;
+		}
+		else
+		{
+			tick++;
+			sleep(1);
+			printf("tick %c %d\n", orientation, tick);
+			if (tick >= timeout)
+			{
+				printf("%c timeout\n", orientation);
+				winner = orientation;
+				reason = 'T';
+				end_of_game = true;
+			}
+		}
+		if (strlen(moves) >= 120)
+		{
+			printf("%c timeout\n", orientation);
+			winner = '?';
+			reason = 'D';
+			end_of_game = true;
+		}
+	}
+	if (orientation == 'H')
+	{
+		int game_id = insertGame(pgConn, p, 0, moves, winner, reason, 0, 0, 0);
+		printf("live #%d:  winner %c  reason = %c  %d moves, saved as game_id = %d\n", channel, winner, reason, move_number, game_id);
+	}
+	else
+		printf("live #%d:  winner %c  reason = %c  %d moves\n", channel, winner, reason, move_number);
+}
+
+// ==========
+//    main
+// ==========
 int main(int argc, char* argv[])
 {
-int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2;
-int hp_min = 5, hp_max = 16;
-int vp_min = 5, vp_max = 16;
+int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 60, live_loop = 100;
+int hp_min = 1, hp_max = 11;
+int vp_min = 1, vp_max = 11;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
 double lambda_decay = 0.8, opponent_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
@@ -636,8 +766,7 @@ PGconn *pgConn = NULL;
 						}
 						if (!end_of_game)
 						{
-
-	int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves, lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
+int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves, lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
 
 							if (orientation == 'H')
 							{
@@ -676,6 +805,49 @@ PGconn *pgConn = NULL;
 				{
 					int game_id = insertGame(pgConn, 0, 0, current_game_moves, orientation, '?', 0, 0, 0);
 					printf("saved as game_id = %d\n", game_id);
+				}
+				else if (strcmp("live", action) == 0)
+				{
+					if (strlen(parameters) >= 2)
+					{
+						char orient = parameters[1];
+						parameters[1] = 0;
+						int channel = atoi(parameters);
+						int player_id = 10;
+						if (strlen(parameters) >= 4 && parameters[2] == '/')
+							player_id = atoi(&parameters[3]);
+						if (orient == 'H') // register
+						{
+							if (RegisterLive(pgConn, channel, player_id))
+							{
+								printf("registered live channel id = %d, hp = %d\n", channel, player_id);
+								// todo : wait for V player to join
+								GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset);
+							}
+							else printf("cannot-register-live-channel %d\n", channel);
+						}
+						else if (orient == 'V') // join
+						{
+							if (JoinLive(pgConn, channel, player_id))
+							{
+								printf("joined live channel id = %d, vp = %d\n", channel, player_id);
+								GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset);
+							}
+							else printf("cannot-join-live-channel %d\n", channel);
+						}
+						else if (orient == 'D') // delete
+						{
+							if (DeleteLive(pgConn, channel))
+							{
+								printf("deleted live channel id = %d\n", channel);
+							}
+							else printf("cannot-delete-live-channel %d\n", channel);
+						}
+						else if (orient == 'P') // print
+						{
+							PrintLive(pgConn, channel);
+						}
+					}
 				}
 				else if (strcmp("session", action) == 0)
 				{
@@ -870,6 +1042,8 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 							else if (strcmp(parameters, "vp-min") == 0) vp_min = ivalue;
 							else if (strcmp(parameters, "vp-max") == 0) vp_max = ivalue;
 							else if (strcmp(parameters, "offset") == 0) offset = ivalue;
+							else if (strcmp(parameters, "live-timeout") == 0) live_timeout = ivalue;
+							else if (strcmp(parameters, "live-loop") == 0) live_loop = ivalue;
 							else bp = false;
 							if (bp) printf("parameter %s set to %6.3f\n", parameters, dvalue);
 						}
@@ -888,6 +1062,8 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 					printf("vp-min         = %3d\n", vp_min);
 					printf("vp-max         = %3d\n", vp_max);
 					printf("offset         = %2d\n", offset);
+					printf("live-timeout   = %3d\n", live_timeout);
+					printf("live-loop      = %3d\n", live_loop);
 				}
 				else if (strcmp("position", action) == 0)
 				{

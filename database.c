@@ -393,7 +393,7 @@ int insertGame(PGconn *pgConn, int hp, int vp, char *moves, char winner, char re
 
 bool LoadGame(PGconn *pgConn, int game, char *moves)
 {
-char query[1024];
+char query[256];
 
 	sprintf(query, "select moves from k2s.game where id = %d", game);
 	
@@ -413,7 +413,7 @@ char query[1024];
 bool LoadPlayerParameters(PGconn *pgConn, int player, PLAYER_PARAMETERS *ppp)
 {
 long long id = -1;
-char query[1024];
+char query[256];
 
 	sprintf(query, "select lambda_decay, opp_decay, max_moves, depth, rating from k2s.player where id = %d", player);
 	
@@ -473,6 +473,132 @@ bool UpdatePlayerDraw(PGconn *pgConn, int player, double gl)
 		}
 		else return false;
 	}
+}
+
+//====================================================
+//	LIVE
+//====================================================
+
+void PrintLive(PGconn *pgConn, int channel)
+{
+char query[256];
+
+	sprintf(query, "select ts, hp, vp, hpid, vpid, moves, trait, last_move, length, winner, reason from k2s.live where channel = %d", channel);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL && PQntuples(pgres) == 1)
+	{
+		printf("%ld  %d/%d  vs  %d/%d\n", atol(PQgetvalue(pgres, 0, 0)),
+			atoi(PQgetvalue(pgres, 0, 1)), atoi(PQgetvalue(pgres, 0, 3)),
+			atoi(PQgetvalue(pgres, 0, 2)), atoi(PQgetvalue(pgres, 0, 4)));
+
+		printf("%s  (%d)  %s  %s\n", PQgetvalue(pgres, 0, 5), atoi(PQgetvalue(pgres, 0, 8)), PQgetvalue(pgres, 0, 7), PQgetvalue(pgres, 0, 6));
+		printf("Winner %s  reason = '%s'\n", PQgetvalue(pgres, 0, 9), PQgetvalue(pgres, 0, 10));
+
+		PQclear(pgres);
+	}
+}
+
+bool DeleteLive(PGconn *pgConn, int channel)
+{
+	int nbc = 0;
+
+	pgExecFormat(pgConn, &nbc, "delete from k2s.live where channel = %d", channel);
+	return nbc == 1;
+}
+
+bool RegisterLive(PGconn *pgConn, int channel, int hp)
+{
+	int nbc = 0;
+	unsigned long long uts = getCurrentUTS();
+	int pid = getpid();
+
+	pgExecFormat(pgConn, &nbc, "insert into k2s.live values (%d, %llu, %d, %d, %d, %d, '%s', '%c', '%s', %d, '%c', '%c')",
+				channel, uts, hp, 0, pid, 0, "", 'H', "  ", 0, ' ', ' ');
+	return nbc == 1;
+}
+
+bool JoinLive(PGconn *pgConn, int channel, int vp)
+{
+	int nbc = 0;
+	unsigned long long uts = getCurrentUTS();
+	int pid = getpid();
+
+	pgExecFormat(pgConn, &nbc, "update k2s.live set vp = %d, vpid = %d, ts = %llu where channel = %d and vp = 0 and vpid = 0",
+				vp, pid, uts, channel);
+	return nbc == 1;
+}
+
+bool CheckLive(PGconn *pgConn, int channel, char orientation, char *last_move, char *moves)
+{
+char query[256];
+
+	sprintf(query, "select last_move, moves from k2s.live where channel = %d and trait = '%c'", channel, orientation);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL && PQntuples(pgres) == 1)
+	{
+		strcpy(last_move, PQgetvalue(pgres, 0, 0));
+		strcpy(moves, PQgetvalue(pgres, 0, 1));
+
+		PQclear(pgres);
+		return true;
+	} else return false;
+}
+
+bool PlayLive(PGconn *pgConn, int channel, char orientation, char *move, char *moves)
+{
+	int nbc = 0;
+	unsigned long long uts = getCurrentUTS();
+	int pid = getpid();
+	char trait = 'H';
+	if (orientation == 'H')
+		trait = 'V';
+
+	char new_moves[128];
+	sprintf(new_moves, "%s%s", moves, move);
+	int nb_moves = strlen(new_moves) / 2;
+
+	pgExecFormat(pgConn, &nbc,
+	"update k2s.live set last_move = '%s', moves = '%s', ts = %llu, trait = '%c', length = %d where channel = %d and trait = '%c' and moves = '%s' and winner = ' '",
+		move, new_moves, uts, trait, nb_moves, channel, orientation, moves);
+	return nbc == 1;
+}
+
+bool ResignLive(PGconn *pgConn, int channel, char winner, char reason)
+{
+	int nbc = 0;
+	unsigned long long uts = getCurrentUTS();
+	int pid = getpid();
+
+	pgExecFormat(pgConn, &nbc, "update k2s.live set winner = '%c', reason = '%c', ts = %llu where channel = %d",
+				winner, reason, uts, channel);
+	return nbc == 1;
+}
+
+bool CheckResign(PGconn *pgConn, int channel, char orientation)
+{
+char query[256];
+
+	sprintf(query, "select reason from k2s.live where channel = %d and winner = '%c'", channel, orientation);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL && PQntuples(pgres) == 1)
+	{
+		PQclear(pgres);
+		return true;
+	} else return false;
+}
+
+bool WinLive(PGconn *pgConn, int channel, char winner, char reason)
+{
+	int nbc = 0;
+	unsigned long long uts = getCurrentUTS();
+	int pid = getpid();
+
+	pgExecFormat(pgConn, &nbc, "update k2s.live set winner = '%c', reason = '%c', ts = %llu where channel = %d",
+				winner, reason, uts, channel);
+	return nbc == 1;
 }
 
 
