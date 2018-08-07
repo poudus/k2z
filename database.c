@@ -601,5 +601,18 @@ bool WinLive(PGconn *pgConn, int channel, char winner, char reason)
 	return nbc == 1;
 }
 
+int WaitLive(PGconn *pgConn, int channel)
+{
+char query[256];
 
+	sprintf(query, "select vp from k2s.live where channel = %d and vp > 0 and vpid > 0", channel);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL && PQntuples(pgres) == 1)
+	{
+		int vp = atoi(PQgetvalue(pgres, 0, 0));
+		PQclear(pgres);
+		return vp;
+	} else return -1;
+}
 

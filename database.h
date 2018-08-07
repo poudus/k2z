@@ -45,6 +45,8 @@ bool PlayLive(PGconn *pgConn, int channel, char orientation, char *move, char *m
 bool ResignLive(PGconn *pgConn, int channel, char winner, char reason);
 bool CheckResign(PGconn *pgConn, int channel, char orientation);
 bool WinLive(PGconn *pgConn, int channel, char winner, char reason);
+int WaitLive(PGconn *pgConn, int channel);
+
 
 
 
