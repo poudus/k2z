@@ -328,7 +328,7 @@ double EloExpectedResult(double r1, double r2)
 
 double EloDifference(double p)
 {
-	return -400.0 * log10 (1/p - 1);
+	return -400.0 * log10 (1.0/p - 1.0);
 }
 //
 // live
@@ -354,6 +354,8 @@ PLAYER_PARAMETERS pp;
 	{
 		depth = pp.depth;
 		max_moves = pp.max_moves;
+		lambda_decay = pp.lambda_decay;
+		opponent_decay = pp.opp_decay;
 	}
 
 	if (orientation == 'H')
