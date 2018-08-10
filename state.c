@@ -261,7 +261,15 @@ int	moves = 0;
 long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths, bool alloc_wave)
 {
 	state->horizontal.waves = state->horizontal.count = hpaths;
-	if (alloc_wave) state->horizontal.wave = malloc(hpaths * sizeof(WAVE));
+	if (alloc_wave)
+	{
+		state->horizontal.wave = malloc(hpaths * sizeof(WAVE));
+		if (state->horizontal.wave == NULL)
+		{
+			printf("HORIZONTAL-WAVE-NO-MEMORY !!\n");
+			exit(-1);
+		}
+	}
 	for (int w = 0 ; w < hpaths ; w++)
 	{
 		state->horizontal.wave[w].status = 'O';
@@ -274,7 +282,15 @@ long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths, bool all
 #endif
 	}
 	state->vertical.waves = state->vertical.count = vpaths;
-	if (alloc_wave) state->vertical.wave = malloc(vpaths * sizeof(WAVE));
+	if (alloc_wave)
+	{
+		state->vertical.wave = malloc(vpaths * sizeof(WAVE));
+		if (state->vertical.wave == NULL)
+		{
+			printf("VERTICAL-WAVE-NO-MEMORY !!\n");
+			exit(-1);
+		}
+	}
 	for (int w = 0 ; w < vpaths ; w++)
 	{
 		state->vertical.wave[w].status = 'O';

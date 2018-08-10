@@ -134,7 +134,9 @@ int min_game_id = 0;
 		}
 		long ts;
 		int last_game_id = LastGame(pgConn, &ts);
-		printf("\nlast game : %6d   %8ld  %06ld\n\n", last_game_id, ts/1000000, ts%1000000);
+		printf("\nlast game : %6d   %8ld  %06ld\n", last_game_id, ts/1000000, ts%1000000);
+		int count = pgGetCount(pgConn, "k2s.game", "");
+		printf("\ngame count: %6d\n\n", count);
 	}
 	else
 	{

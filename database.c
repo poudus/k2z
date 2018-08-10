@@ -475,6 +475,49 @@ bool UpdatePlayerDraw(PGconn *pgConn, int player, double gl)
 	}
 }
 
+double EloExpectedResult(double r1, double r2)
+{
+	return 1.0 / (1.0 + pow(10.0, (r2-r1)/400));
+}
+
+double EloDifference(double p)
+{
+	return -400.0 * log10 (1.0/p - 1.0);
+}
+
+bool UpdateRatings(PGconn *pgConn, int hp, int vp, char winner)
+{
+PLAYER_PARAMETERS hpp, vpp;
+
+	while (!LoadPlayerParameters(pgConn, hp, &hpp)) return false;
+	while (!LoadPlayerParameters(pgConn, vp, &vpp)) return false;
+
+	if (winner == 'H')
+	{
+		double expr = EloExpectedResult(hpp.rating, vpp.rating);
+		double gl = 10.0 * (1.0 - expr);
+		printf("%d/%.2f  WIN vs  %d/%.2f     gl = %.2f      expr = %.4f\n", hp, hpp.rating, vp, vpp.rating, gl, expr);
+		UpdatePlayerWin(pgConn, hpp.pid, gl);
+		UpdatePlayerLoss(pgConn, vpp.pid, gl);
+	}
+	else if (winner == 'V')
+	{
+		double expr = EloExpectedResult(vpp.rating, hpp.rating);
+		double gl = 10.0 * (1.0 - expr);
+		printf("%d/%.2f  LOST vs  %d/%.2f     gl = %.2f      expr = %.4f\n", hp, hpp.rating, vp, vpp.rating, gl, expr);
+		UpdatePlayerWin(pgConn, vpp.pid, gl);
+		UpdatePlayerLoss(pgConn, hpp.pid, gl);
+	}
+	else
+	{
+		double expr = EloExpectedResult(hpp.rating, vpp.rating);
+		double hgl = 10.0 * (0.5 - expr);
+		printf("%d/%.2f  DRAW vs  %d/%.2f    hgl = %.2f      hexpr = %.4f\n", hp, hpp.rating, vp, vpp.rating, hgl, expr);
+		UpdatePlayerDraw(pgConn, hpp.pid, hgl);
+		UpdatePlayerDraw(pgConn, vpp.pid, -hgl);
+	}
+}
+
 //====================================================
 //	LIVE
 //====================================================
@@ -555,13 +598,14 @@ bool PlayLive(PGconn *pgConn, int channel, char orientation, char *move, char *m
 	if (orientation == 'H')
 		trait = 'V';
 
-	char new_moves[128];
-	sprintf(new_moves, "%s%s", moves, move);
-	int nb_moves = strlen(new_moves) / 2;
+	char buf_moves[128];
+	strcpy(buf_moves, moves);
+	sprintf(moves, "%s%s", buf_moves, move);
+	int nb_moves = strlen(moves) / 2;
 
 	pgExecFormat(pgConn, &nbc,
 	"update k2s.live set last_move = '%s', moves = '%s', ts = %llu, trait = '%c', length = %d where channel = %d and trait = '%c' and moves = '%s' and winner = ' '",
-		move, new_moves, uts, trait, nb_moves, channel, orientation, moves);
+		move, moves, uts, trait, nb_moves, channel, orientation, buf_moves);
 	return nbc == 1;
 }
 
@@ -576,15 +620,16 @@ bool ResignLive(PGconn *pgConn, int channel, char winner, char reason)
 	return nbc == 1;
 }
 
-bool CheckResign(PGconn *pgConn, int channel, char orientation)
+bool CheckResign(PGconn *pgConn, int channel, char orientation, char *moves)
 {
 char query[256];
 
-	sprintf(query, "select reason from k2s.live where channel = %d and winner = '%c'", channel, orientation);
+	sprintf(query, "select moves from k2s.live where channel = %d and winner = '%c'", channel, orientation);
 	
 	PGresult *pgres = pgQuery(pgConn, query);
 	if (pgres != NULL && PQntuples(pgres) == 1)
 	{
+		strcpy(moves, PQgetvalue(pgres, 0, 0));
 		PQclear(pgres);
 		return true;
 	} else return false;

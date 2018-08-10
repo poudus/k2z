@@ -28,6 +28,10 @@ double pgGetDouble(PGconn *pgConn, const char *pQuery);
 
 char *formatTS(long long ts, char *buffer);
 
+double EloExpectedResult(double r1, double r2);
+double EloDifference(double p);
+bool UpdateRatings(PGconn *pgConn, int hp, int vp, char winner);
+
 int insertGame(PGconn *pgConn, int hp, int vp, char *moves, char winner, char reason, int duration, int ht, int vt);
 bool LoadGame(PGconn *pgConn, int game, char *moves);
 bool LoadPlayerParameters(PGconn *pgConn, int player, PLAYER_PARAMETERS *pp);
@@ -43,7 +47,7 @@ bool DeleteLive(PGconn *pgConn, int channel);
 bool CheckLive(PGconn *pgConn, int channel, char orientation, char *last_move, char *moves);
 bool PlayLive(PGconn *pgConn, int channel, char orientation, char *move, char *moves);
 bool ResignLive(PGconn *pgConn, int channel, char winner, char reason);
-bool CheckResign(PGconn *pgConn, int channel, char orientation);
+bool CheckResign(PGconn *pgConn, int channel, char orientation, char *moves);
 bool WinLive(PGconn *pgConn, int channel, char winner, char reason);
 int WaitLive(PGconn *pgConn, int channel);
 

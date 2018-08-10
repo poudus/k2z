@@ -186,7 +186,7 @@ double alpha_beta(BOARD *board, STATE *state, char move_orientation, char player
 {
 double dv = 50.0, d0 = 0.0;
 int dsid = 0;
-TRACK zemoves[1024];
+TRACK zemoves[256];
 char minmax[8], szmov[32];
 
 	*sid = -1;
@@ -283,11 +283,12 @@ char minmax[8], szmov[32];
 }
 
 int think_alpha_beta(BOARD *board, STATE *state, char orientation, int depth, int max_moves,
-			double lambda_decay, double opponent_decay, double wpegs, double wlinks, double wzeta)
+			double lambda_decay, double opponent_decay, double wpegs, double wlinks, double wzeta, double *eval)
 {
 int	sid = -1;
 TRACK zemoves[1024];
 
+	*eval = 0.0;
 	if (depth == 0)
 	{
 		eval_orientation(board, state, orientation, lambda_decay, wpegs, wlinks, wzeta, true);
@@ -300,14 +301,15 @@ TRACK zemoves[1024];
 
 		gettimeofday(&t0, NULL);
 		gst_calls = 0;
-		double eval = alpha_beta(board, state, orientation, orientation, depth, max_moves, -999.99, 999.99, true,
+		*eval = alpha_beta(board, state, orientation, orientation, depth, max_moves, -999.99, 999.99, true,
 			lambda_decay, opponent_decay, wpegs, wlinks, wzeta, &sid, -1);
+
 		gettimeofday(&t_end, NULL);
 		double dms = duration(&t0, &t_end) / 1000.0;
 
 		int max_pos = pow(max_moves, depth);
 		printf("alpha_beta(%d,%2d) = %6.2f %%   sid = %4d/%s  duration = %6.2f  sec    prunning = %4.2f %%  %7d/%-8d   %6.2f pos/sec\n",
-			depth, max_moves, eval, sid, board->slot[sid].code, dms, (double)100.0*(max_pos-gst_calls)/(double)max_pos, gst_calls,
+			depth, max_moves, *eval, sid, board->slot[sid].code, dms, (double)100.0*(max_pos-gst_calls)/(double)max_pos, gst_calls,
 			max_pos, gst_calls/dms);
 	}
 	return sid;
@@ -321,15 +323,6 @@ int parse_slot(BOARD *board, char *pslot)
 	else return atoi(pslot);
 }
 
-double EloExpectedResult(double r1, double r2)
-{
-	return 1.0 / (1.0 + pow(10.0, (r2-r1)/400));
-}
-
-double EloDifference(double p)
-{
-	return -400.0 * log10 (1.0/p - 1.0);
-}
 //
 // live
 //
@@ -337,9 +330,9 @@ void GameLive(PGconn *pgConn, BOARD *board, int channel, char orientation, int p
 {
 bool end_of_game = false;
 char last_move[8], zmove[8], moves[128], winner = ' ', reason = ' ', opp_orientation = 'H';
-int  tick = 0, slot = 0, move_number = 0, depth = 2, max_moves = 20, msid = 0;
+int  tick = 0, slot = 0, move_number = 0, depth = 2, max_moves = 20, msid = 0, total_think_duration = 0, total_wait_duration = 0;
 STATE my_state, new_state;
-double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, lambda_decay = 0.8, opponent_decay = 0.8;
+double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, lambda_decay = 0.8, opponent_decay = 0.8, alpha_beta_eval = 0.0;
 PLAYER_PARAMETERS pp;
 
 	init_state(&my_state, board->horizontal.paths, board->vertical.paths, true);
@@ -383,14 +376,24 @@ PLAYER_PARAMETERS pp;
 					ResignLive(pgConn, channel, winner, reason);
 				} else clone_state(&new_state, &my_state, false);
 			}
-			//-----------
+			//-----------, alpha_beta_eval = 0.0
 			if (!end_of_game)
 			{
+				alpha_beta_eval = 0.0;
 				if (orientation == 'H' && move_number == 0)
 					msid = find_xy(board, offset+rand()%(board->width-2*offset), offset+rand()%(board->height-2*offset));
 				else
+				{
+					printf("%c.think()\n", orientation);
+					struct timeval t0, t_end;
+
+					gettimeofday(&t0, NULL);
 					msid = think_alpha_beta(board, &my_state, orientation, depth, max_moves,
-						lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
+						lambda_decay, opponent_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
+
+					gettimeofday(&t_end, NULL);
+					total_think_duration += (int)(duration(&t0, &t_end));
+				}
 
 				move(board, &my_state, &new_state, msid, orientation);
 
@@ -401,12 +404,12 @@ PLAYER_PARAMETERS pp;
 				{
 					tick = 0;
 					double dwq2 = eval_orientation(board, &new_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
-					printf("%c played  : %s(%2d) %6.2f %%\n", orientation, zmove, move_number, dwq2);
+					printf("%c played  : %s(%2d) %6.2f %%   abd = %7.2f %%\n", orientation, zmove, move_number, dwq2, alpha_beta_eval - dwq2);
 					//-----------
 					if ((orientation == 'H' && winning_field(&new_state.horizontal)) ||
 						(orientation == 'V' && winning_field(&new_state.vertical)))
 					{
-						printf("%c win +++ eval   = %6.2f %%\n", orientation, dwq2);
+						printf("%c win +++ eval   = %6.2f %%  move =      %s     moves = %s\n", orientation, dwq2, zmove, moves);
 						winner = orientation;
 						reason = 'W';
 						end_of_game = true;
@@ -415,13 +418,13 @@ PLAYER_PARAMETERS pp;
 				}
 				else
 				{
-					printf("%c ERROR\n", orientation);
+					printf("%c.PLAY-ERROR channel = %d\n", orientation, orientation);
 					reason = 'E';
 					end_of_game = true;
 				}
 			}
 		}
-		else if (CheckResign(pgConn, channel, orientation))
+		else if (CheckResign(pgConn, channel, orientation, moves))
 		{
 			printf("%c win +++ %c resigned, moves = %s\n", orientation, opp_orientation, moves);
 			winner = orientation;
@@ -431,11 +434,12 @@ PLAYER_PARAMETERS pp;
 		else
 		{
 			tick++;
+			total_wait_duration += 1000;
 			sleep(1);
-			//printf("tick %c %d\n", orientation, tick);
+			if (tick == 1) printf("%c.wait()\n", orientation);
 			if (tick >= timeout)
 			{
-				printf("%c timeout\n", orientation);
+				printf("%c timeout %d\n", orientation, timeout);
 				winner = orientation;
 				reason = 'T';
 				end_of_game = true;
@@ -453,9 +457,13 @@ PLAYER_PARAMETERS pp;
 	free_state(&new_state);
 	if (orientation == 'H' && reason != 'T')
 	{
-		int game_id = insertGame(pgConn, pid, opid, moves, winner, reason, 0, 0, 0);
-		printf("live #%d:  winner %c   reason = %c  %d moves, saved as game_id = %d  (%d vs %d)\n",
+		int ht = (int)(2 * total_think_duration / move_number);
+		int vt = (int)(2 * total_wait_duration / move_number);
+		int game_id = insertGame(pgConn, pid, opid, moves, winner, reason, total_think_duration + total_wait_duration, ht, vt);
+		printf("live #%d:  winner %c   reason = %c    %2d moves      game = %d  (%d vs %d)\n",
 			channel, winner, reason, move_number, game_id, pid, opid);
+
+		UpdateRatings(pgConn, pid, opid, winner);
 	}
 	else
 		printf("live #%d:  winner %c   reason = %c  %d moves\n", channel, winner, reason, move_number);
@@ -469,7 +477,7 @@ int main(int argc, char* argv[])
 int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 60, live_loop = 100, wait_live = 100;
 int hp_min = 1, hp_max = 11;
 int vp_min = 1, vp_max = 11;
-double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0;
+double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0;
 double lambda_decay = 0.8, opponent_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
 BOARD board;
@@ -672,7 +680,7 @@ PGconn *pgConn = NULL;
 							max_moves = atoi(pvalue);
 					}
 					int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves,
-							lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
+							lambda_decay, opponent_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
 					printf("think-move(%d)%4d/%s\n", depth, msid, board.slot[msid].code);
 				}
 				else if (strcmp("play", action) == 0)
@@ -694,7 +702,7 @@ PGconn *pgConn = NULL;
 							max_moves = atoi(pvalue);
 					}
 					int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves,
-						lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
+						lambda_decay, opponent_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
 
 					if (orientation == 'H')
 					{
@@ -774,7 +782,7 @@ PGconn *pgConn = NULL;
 						}
 						if (!end_of_game)
 						{
-int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves, lambda_decay, opponent_decay, wpegs, wlinks, wzeta);
+int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves, lambda_decay, opponent_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
 
 							if (orientation == 'H')
 							{
@@ -960,7 +968,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 									}
 									else
 									{
-		msid = think_alpha_beta(&board, current_state, orientation, hpp.depth, hpp.max_moves, hpp.lambda_decay, hpp.opp_decay, wpegs, wlinks, wzeta);
+		msid = think_alpha_beta(&board, current_state, orientation, hpp.depth, hpp.max_moves, hpp.lambda_decay, hpp.opp_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
 									}
 									move(&board, &state_h, &state_v, msid, orientation);
 									orientation = 'V';
@@ -968,7 +976,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 								}
 								else
 								{
-		msid = think_alpha_beta(&board, current_state, orientation, vpp.depth, vpp.max_moves, vpp.lambda_decay, vpp.opp_decay, wpegs, wlinks, wzeta);
+		msid = think_alpha_beta(&board, current_state, orientation, vpp.depth, vpp.max_moves, vpp.lambda_decay, vpp.opp_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
 									move(&board, &state_v, &state_h, msid, orientation);
 									orientation = 'H';
 									current_state = &state_h;
@@ -993,30 +1001,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 							iloop, nb_loops, winner, reason, move_number, current_game_moves);
 						printf("duration = %6d sec\n", (int)duration(&t0_game, &tend_game)/1000);
 
-						if (winner == 'H')
-						{
-							double expr = EloExpectedResult(hpp.rating, vpp.rating);
-							double gl = 10.0 * (1.0 - expr);
-							printf("%.2f  vs  %.2f     gl = %.2f    expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
-							UpdatePlayerWin(pgConn, hpp.pid, gl);
-							UpdatePlayerLoss(pgConn, vpp.pid, gl);
-						}
-						else if (winner == 'V')
-						{
-							double expr = EloExpectedResult(vpp.rating, hpp.rating);
-							double gl = 10.0 * (1.0 - expr);
-							printf("%.2f  vs  %.2f     gl = %.2f    expr = %.4f\n", hpp.rating, vpp.rating, gl, expr);
-							UpdatePlayerWin(pgConn, vpp.pid, gl);
-							UpdatePlayerLoss(pgConn, hpp.pid, gl);
-						}
-						else
-						{
-							double expr = EloExpectedResult(hpp.rating, vpp.rating);
-							double hgl = 10.0 * (0.5 - expr);
-							printf("%.2f  vs  %.2f    hgl = %.2f    hexpr = %.4f\n", hpp.rating, vpp.rating, hgl, expr);
-							UpdatePlayerDraw(pgConn, hpp.pid, hgl);
-							UpdatePlayerDraw(pgConn, vpp.pid, -hgl);
-						}
+						UpdateRatings(pgConn, hpp.pid, vpp.pid, winner);
 
 						int mh = msh/((move_number+1)/2);
 						int mv = msv/(move_number/2);
