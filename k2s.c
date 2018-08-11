@@ -115,7 +115,7 @@ int min_game_id = 0;
 		sprintf(database_name, "k%s", argv[1]);
 		pgConn = pgOpenConn(database_name, "k2", "", buffer_error);
 		//printf("database connection     = %p %s\n", pgConn, database_name);
-		printf("\nplayers\n--------------------------------------------------\n");
+		printf("\npid  d/mm   rating   avgmd   games    win   loss\n--------------------------------------------------\n");
 		int nb_players = LoadPlayers(pgConn, &players[0]);
 		if (argc > 2)
 			min_game_id = atoi(argv[2]);

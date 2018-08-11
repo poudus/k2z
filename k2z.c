@@ -834,35 +834,47 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 						int channel = atoi(parameters);
 						if (orient == 'H') // register
 						{
-							if (RegisterLive(pgConn, channel, player_id))
+							for (int iloop = 0 ; iloop < live_loop ; iloop++)
 							{
-								printf("registered live channel id = %d, hp = %d\n", channel, player_id);
-								// wait for V player to join
-								int nb_wait = 0, vp = 0;
-								do
+								if (RegisterLive(pgConn, channel, player_id))
 								{
-									sleep(1);
-									nb_wait++;
-									vp = WaitLive(pgConn, channel);
-								} while (vp <= 0 && nb_wait < wait_live);
-								if (vp > 0)
-								{
-									printf("vp %d joined live channel %d  (wait = %d)\n", vp, channel, nb_wait);
-									GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, vp);
-									sleep(10);
+									printf("\nregistered live channel id = %d, hp = %d  iloop = %4d/%-4d\n",
+										channel, player_id, iloop+1, live_loop);
+									// wait for V player to join
+									int nb_wait = 0, vp = 0;
+									do
+									{
+										sleep(1);
+										nb_wait++;
+										vp = WaitLive(pgConn, channel);
+									} while (vp <= 0 && nb_wait < wait_live);
+									if (vp > 0)
+									{
+										printf("vp %d joined live channel %d  (wait = %d)\n", vp, channel, nb_wait);
+										GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, vp);
+										sleep(10);
+									} else printf("wait aborted after %d seconds.\n",wait_live);
 									DeleteLive(pgConn, channel);
-								} else printf("wait aborted after %d seconds.\n",wait_live );
+									sleep(2);
+								}
+								else printf("cannot-register-live-channel %d\n", channel);
 							}
-							else printf("cannot-register-live-channel %d\n", channel);
+							printf("session live channel id = %d, hp = %d  count = %6d\n", channel, player_id, live_loop);
 						}
 						else if (orient == 'V') // join
 						{
-							if (JoinLive(pgConn, channel, player_id))
+							for (int iloop = 0 ; iloop < live_loop ; iloop++)
 							{
-								printf("joined live channel id = %d, vp = %d\n", channel, player_id);
-								GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, 0);
+								if (JoinLive(pgConn, channel, player_id))
+								{
+									printf("\njoined live channel id = %d, vp = %d  iloop = %4d/%-4d\n",
+										channel, player_id, iloop+1, live_loop);
+									GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, 0);
+								}
+								else printf("cannot-join-live-channel %d\n", channel);
+								sleep(15);
 							}
-							else printf("cannot-join-live-channel %d\n", channel);
+							printf("session live channel id = %d, vp = %d  count = %6d\n", channel, player_id, live_loop);
 						}
 						else if (orient == 'D') // delete
 						{
