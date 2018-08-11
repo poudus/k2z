@@ -474,7 +474,7 @@ PLAYER_PARAMETERS pp;
 // ==========
 int main(int argc, char* argv[])
 {
-int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 60, live_loop = 100, wait_live = 100;
+int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 300, live_loop = 100, wait_live = 60;
 int hp_min = 1, hp_max = 11;
 int vp_min = 1, vp_max = 11;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0;
@@ -485,7 +485,7 @@ TRACK zemoves[512];
 char buffer_error[512], database_name[32];
 PGconn *pgConn = NULL;
 
-	printf("K2Z.engine-version=1.3\n");
+	printf("K2Z.engine-version=1.5\n");
 	gettimeofday(&t0, NULL);
 	srand(t0.tv_sec);
 	if (argc > 1 && strlen(argv[1]) == 5)
