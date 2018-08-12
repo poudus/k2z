@@ -21,12 +21,12 @@ typedef struct
 
 typedef struct
 {
-	char	key[16];
+	char	key[32];
 	int	count, win, loss;
 	double	wr, lr, ratio, dr;
 } POSITION;
 
-static POSITION gposition[1000];
+static POSITION gposition[10000];
 
 int LoadGames(PGconn *pgConn, GAME *pg)
 {
@@ -51,64 +51,13 @@ strcpy(query, "select g.id, g.winner, g.moves, ph.rating as hr, pv.rating as vr 
 					pg->winner = '?';
 
 				pg->hr = atof(PQgetvalue(pgres, ig, 3));
-				pg->hr = atof(PQgetvalue(pgres, ig, 4));
+				pg->vr = atof(PQgetvalue(pgres, ig, 4));
 
 				pg++;
 			}
 		}
 		PQclear(pgres);
 		return nb_games;
-	} else return -1;
-}
-
-int AvgH(PGconn *pgConn, int hp, int min_game_id, int *count)
-{
-char query[1024];
-double avg = 0.0;
-
-	sprintf(query, "select avg(ht), count(*) from k2s.game where hp = %d and id >= %d", hp, min_game_id);
-	
-	PGresult *pgres = pgQuery(pgConn, query);
-	if (pgres != NULL && PQntuples(pgres) == 1)
-	{
-		avg = atoi(PQgetvalue(pgres, 0, 0));
-		*count = atoi(PQgetvalue(pgres, 0, 1));
-		PQclear(pgres);
-		return avg;
-	} else return -1;
-}
-
-int AvgV(PGconn *pgConn, int vp, int min_game_id, int *count)
-{
-char query[1024];
-double avg = 0.0;
-
-	sprintf(query, "select avg(vt), count(*) from k2s.game where vp = %d and id >= %d", vp, min_game_id);
-	
-	PGresult *pgres = pgQuery(pgConn, query);
-	if (pgres != NULL && PQntuples(pgres) == 1)
-	{
-		avg = atoi(PQgetvalue(pgres, 0, 0));
-		*count = atoi(PQgetvalue(pgres, 0, 1));
-		PQclear(pgres);
-		return avg;
-	} else return -1;
-}
-
-int LastGame(PGconn *pgConn, long *ts)
-{
-char query[1024];
-int game = 0;
-
-	sprintf(query, "select id, ts from k2s.game where id = (select max(id) from k2s.game)");
-	
-	PGresult *pgres = pgQuery(pgConn, query);
-	if (pgres != NULL && PQntuples(pgres) == 1)
-	{
-		game = atoi(PQgetvalue(pgres, 0, 0));
-		*ts = atol(PQgetvalue(pgres, 0, 1));
-		PQclear(pgres);
-		return game;
 	} else return -1;
 }
 
@@ -207,7 +156,7 @@ int main(int argc, char* argv[])
 {
 char	buffer_error[512], database_name[32], flipped_moves[128], buf[128];
 PGconn *pgConn = NULL;
-GAME	games[1280];
+GAME	games[4000];
 int	depth = 2, size = 12, nb_positions = 0, min_count = 5;
 
 	if (argc > 1 && strlen(argv[1]) == 5)
@@ -243,15 +192,17 @@ int	depth = 2, size = 12, nb_positions = 0, min_count = 5;
 		printf("nb_positions = %d\n\n", nb_positions);
 		for (int ip = 0 ; ip < nb_positions ; ip++)
 		{
-			if (gposition[ip].win > 0)
-				gposition[ip].wr /= gposition[ip].win;
+			if (gposition[ip].count > 0)
+			{
+				gposition[ip].wr /= gposition[ip].count;
+				gposition[ip].lr /= gposition[ip].count;
+			}
 			else
+			{
 				gposition[ip].wr = 0.0;
-
-			if (gposition[ip].loss > 0)
-				gposition[ip].lr /= gposition[ip].loss;
-			else
 				gposition[ip].lr = 0.0;
+			}
+
 			gposition[ip].ratio = 100.0 * gposition[ip].win / gposition[ip].count;
 			gposition[ip].dr = gposition[ip].ratio - 100.0 * EloExpectedResult(gposition[ip].wr, gposition[ip].lr);
 		}
@@ -261,8 +212,8 @@ int	depth = 2, size = 12, nb_positions = 0, min_count = 5;
 		{
 			if (gposition[ip].count >= min_count)
 			{
-				printf("%s   %6.2f %%   %3d - %-3d   [ %6.2f ]\n", gposition[ip].key, gposition[ip].ratio,
-					gposition[ip].win, gposition[ip].loss, gposition[ip].dr);
+				printf("%s   %6.2f %%   %3d - %-3d   [ %6.2f ]  %4d - %-4d\n", gposition[ip].key, gposition[ip].ratio,
+					gposition[ip].win, gposition[ip].loss, gposition[ip].dr, (int)gposition[ip].wr, (int)gposition[ip].lr);
 				nb_keys++;
 			}
 		}

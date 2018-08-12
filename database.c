@@ -496,7 +496,7 @@ PLAYER_PARAMETERS hpp, vpp;
 	{
 		double expr = EloExpectedResult(hpp.rating, vpp.rating);
 		double gl = 10.0 * (1.0 - expr);
-		printf("%d/%.2f  WIN vs  %d/%.2f     gl = %.2f      expr = %.4f\n", hp, hpp.rating, vp, vpp.rating, gl, expr);
+		printf("%d/%6.2f  WIN vs  %d/%6.2f     gl = %4.2f      expr =  %.2f\n", hp, hpp.rating, vp, vpp.rating, gl, expr);
 		UpdatePlayerWin(pgConn, hpp.pid, gl);
 		UpdatePlayerLoss(pgConn, vpp.pid, gl);
 	}
@@ -504,7 +504,7 @@ PLAYER_PARAMETERS hpp, vpp;
 	{
 		double expr = EloExpectedResult(vpp.rating, hpp.rating);
 		double gl = 10.0 * (1.0 - expr);
-		printf("%d/%.2f  LOST vs  %d/%.2f     gl = %.2f      expr = %.4f\n", hp, hpp.rating, vp, vpp.rating, gl, expr);
+		printf("%d/%6.2f  LOST vs  %d/%6.2f     gl = %4.2f    expr =  %.2f\n", hp, hpp.rating, vp, vpp.rating, gl, expr);
 		UpdatePlayerWin(pgConn, vpp.pid, gl);
 		UpdatePlayerLoss(pgConn, hpp.pid, gl);
 	}
@@ -512,7 +512,7 @@ PLAYER_PARAMETERS hpp, vpp;
 	{
 		double expr = EloExpectedResult(hpp.rating, vpp.rating);
 		double hgl = 10.0 * (0.5 - expr);
-		printf("%d/%.2f  DRAW vs  %d/%.2f    hgl = %.2f      hexpr = %.4f\n", hp, hpp.rating, vp, vpp.rating, hgl, expr);
+		printf("%d/%6.2f  DRAW vs  %d/%6.2f    hgl = %4.2f    hexpr =  %.2f\n", hp, hpp.rating, vp, vpp.rating, hgl, expr);
 		UpdatePlayerDraw(pgConn, hpp.pid, hgl);
 		UpdatePlayerDraw(pgConn, vpp.pid, -hgl);
 	}

@@ -334,7 +334,9 @@ int  tick = 0, slot = 0, move_number = 0, depth = 2, max_moves = 20, msid = 0, t
 STATE my_state, new_state;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, lambda_decay = 0.8, opponent_decay = 0.8, alpha_beta_eval = 0.0;
 PLAYER_PARAMETERS pp;
+struct timeval t_begin, t_end;
 
+	gettimeofday(&t_begin, NULL);
 	init_state(&my_state, board->horizontal.paths, board->vertical.paths, true);
 	init_state(&new_state, board->horizontal.paths, board->vertical.paths, true);
 
@@ -365,7 +367,7 @@ PLAYER_PARAMETERS pp;
 				move(board, &my_state, &new_state, slot, opp_orientation);
 				move_number++;
 				double dwq = eval_orientation(board, &new_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
-				printf("last move = %s  e= %6.2f %%   tick= %4d        moves =  %s  (%lu)\n", last_move, dwq, tick, moves, strlen(moves)/2);
+				printf("last move = %s  e= %6.2f %%   tick= %7d     moves =  %s  (%lu)\n", last_move, dwq, tick, moves, strlen(moves)/2);
 				//-----------
 				if ((orientation == 'H' && empty_field(&new_state.horizontal)) || (orientation == 'V' && empty_field(&new_state.vertical)))
 				{
@@ -409,7 +411,7 @@ PLAYER_PARAMETERS pp;
 					if ((orientation == 'H' && winning_field(&new_state.horizontal)) ||
 						(orientation == 'V' && winning_field(&new_state.vertical)))
 					{
-						printf("%c win +++ eval   = %6.2f %%  move =      %s     moves = %s\n", orientation, dwq2, zmove, moves);
+						printf("%c win +++ eval   = %6.2f %%  move =      %s     moves =  %s\n", orientation, dwq2, zmove, moves);
 						winner = orientation;
 						reason = 'W';
 						end_of_game = true;
@@ -455,18 +457,20 @@ PLAYER_PARAMETERS pp;
 	}
 	free_state(&my_state);
 	free_state(&new_state);
+	gettimeofday(&t_end, NULL);
 	if (orientation == 'H' && reason != 'T')
 	{
 		int ht = (int)(2 * total_think_duration / move_number);
 		int vt = (int)(2 * total_wait_duration / move_number);
 		int game_id = insertGame(pgConn, pid, opid, moves, winner, reason, total_think_duration + total_wait_duration, ht, vt);
-		printf("live #%d:  winner %c   reason = %c    %2d moves      game = %d  (%d vs %d)\n",
-			channel, winner, reason, move_number, game_id, pid, opid);
+		printf("live #%d:  winner %c   reason = %c    %2d moves  duration =  %-4d sec     game = %d  (%d vs %d)\n",
+			channel, winner, reason, move_number, (int)duration(&t_begin, &t_end)/1000, game_id, pid, opid);
 
 		UpdateRatings(pgConn, pid, opid, winner);
 	}
 	else
-		printf("live #%d:  winner %c   reason = %c  %d moves\n", channel, winner, reason, move_number);
+		printf("live #%d:  winner %c   reason = %c    %2d moves  duration =  %-4d sec\n",
+			channel, winner, reason, move_number, (int)duration(&t_begin, &t_end)/1000);
 }
 
 // ==========
@@ -834,11 +838,12 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 						int channel = atoi(parameters);
 						if (orient == 'H') // register
 						{
+							gettimeofday(&t_begin, NULL);
 							for (int iloop = 0 ; iloop < live_loop ; iloop++)
 							{
 								if (RegisterLive(pgConn, channel, player_id))
 								{
-									printf("\nregistered live channel id = %d, hp = %d  iloop = %4d/%-4d\n",
+									printf("\nregistered live channel id = %d, hp = %3d        iloop =  %d/%d\n",
 										channel, player_id, iloop+1, live_loop);
 									// wait for V player to join
 									int nb_wait = 0, vp = 0;
@@ -859,22 +864,27 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 								}
 								else printf("cannot-register-live-channel %d\n", channel);
 							}
-							printf("session live channel id = %d, hp = %d  count = %6d\n", channel, player_id, live_loop);
+							gettimeofday(&t_end, NULL);
+							printf("session live channel id = %d, hp = %3d        duration =  %-3d min     count = %d\n",
+								channel, player_id, (int)duration(&t_begin, &t_end)/60000, live_loop);
 						}
 						else if (orient == 'V') // join
 						{
+							gettimeofday(&t_begin, NULL);
 							for (int iloop = 0 ; iloop < live_loop ; iloop++)
 							{
 								if (JoinLive(pgConn, channel, player_id))
 								{
-									printf("\njoined live channel id = %d, vp = %d  iloop = %4d/%-4d\n",
+									printf("\njoined live channel id = %d, vp = %3d            iloop =  %d/%d\n",
 										channel, player_id, iloop+1, live_loop);
 									GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, 0);
 								}
 								else printf("cannot-join-live-channel %d\n", channel);
 								sleep(15);
 							}
-							printf("session live channel id = %d, vp = %d  count = %6d\n", channel, player_id, live_loop);
+							gettimeofday(&t_end, NULL);
+							printf("session live channel id = %d, vp = %3d        duration =  %-3d min     count = %d\n",
+								channel, player_id, (int)duration(&t_begin, &t_end)/60000, live_loop);
 						}
 						else if (orient == 'D') // delete
 						{
