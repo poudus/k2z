@@ -156,7 +156,7 @@ int main(int argc, char* argv[])
 {
 char	buffer_error[512], database_name[32], flipped_moves[128], buf[128];
 PGconn *pgConn = NULL;
-GAME	games[4000];
+GAME	*games = malloc(sizeof(GAME)*100000);
 int	depth = 2, size = 12, nb_positions = 0, min_count = 5;
 
 	if (argc > 1 && strlen(argv[1]) == 5)
@@ -212,7 +212,7 @@ int	depth = 2, size = 12, nb_positions = 0, min_count = 5;
 		{
 			if (gposition[ip].count >= min_count)
 			{
-				printf("%s   %6.2f %%   %3d - %-3d   [ %6.2f ]  %4d - %-4d\n", gposition[ip].key, gposition[ip].ratio,
+				printf("%s   %6.2f %%   %4d - %-4d   [ %6.2f ]  %4d - %-4d\n", gposition[ip].key, gposition[ip].ratio,
 					gposition[ip].win, gposition[ip].loss, gposition[ip].dr, (int)gposition[ip].wr, (int)gposition[ip].lr);
 				nb_keys++;
 			}
@@ -224,5 +224,6 @@ int	depth = 2, size = 12, nb_positions = 0, min_count = 5;
 		printf("error.invalid-database-name\n");
 		return -1;
 	}
+	free(games);
 }
 
