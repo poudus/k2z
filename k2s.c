@@ -15,7 +15,7 @@ typedef struct
 {
 	int id, depth, max_moves, games, win, loss;
 	char label[16];
-	double rating, avg;
+	double rating, avg, des;
 } PLAYER;
 
 int LoadPlayers(PGconn *pgConn, PLAYER *pp)
@@ -100,6 +100,14 @@ int game = 0;
 	} else return -1;
 }
 
+int cmp_player_avg(const void *p1, const void *p2)
+{
+	if (((PLAYER*)p2)->avg > ((PLAYER*)p1)->avg)
+		return 1;
+	else
+		return -1;
+}
+
 //
 // main
 //
@@ -109,16 +117,22 @@ char buffer_error[512], database_name[32];
 PGconn *pgConn = NULL;
 PLAYER players[32];
 int min_game_id = 0;
+bool	byavgmd = false;
 
 	if (argc > 1 && strlen(argv[1]) == 5)
 	{
 		sprintf(database_name, "k%s", argv[1]);
 		pgConn = pgOpenConn(database_name, "k2", "", buffer_error);
 		//printf("database connection     = %p %s\n", pgConn, database_name);
-		printf("\npid  d/mm   rating   avgmd   games    win   loss\n--------------------------------------------------\n");
+		printf("\npid  d/mm   rating   avgmd   games    win   loss     e/s\n--------------------------------------------------------\n");
 		int nb_players = LoadPlayers(pgConn, &players[0]);
 		if (argc > 2)
-			min_game_id = atoi(argv[2]);
+		{
+			if (strcmp(argv[2], "-avgmd") == 0)
+				byavgmd = true;
+			else
+				min_game_id = atoi(argv[2]);
+		}
 		for (int ip = 0 ; ip < nb_players ; ip++)
 		{
 			int ch = 0, cv = 0;
@@ -129,8 +143,26 @@ int min_game_id = 0;
 				avg = ((ch * avgh) + (cv * avgv)) / (ch + cv);
 			players[ip].avg = avg;
 			players[ip].games = ch + cv;
-			printf("%3d %5s %8.2f  %6.1f  %6d  %5d - %-5d\n", players[ip].id, players[ip].label,
-				players[ip].rating, avg / 1000.0, players[ip].games, players[ip].win, players[ip].loss);
+			players[ip].des = 0.0;
+		}
+		if (byavgmd)
+		{
+			qsort(players, nb_players, sizeof(PLAYER), cmp_player_avg);
+			for (int ip = 0 ; ip < nb_players ; ip++)
+			{
+				if (ip < nb_players -1)
+					players[ip].des = 1000.0 * (players[ip].rating - players[ip+1].rating) / (players[ip].avg - players[ip+1].avg);
+				printf("%3d %5s %8.2f  %6.1f  %6d  %5d - %-5d   %4d\n", players[ip].id, players[ip].label,
+					players[ip].rating, players[ip].avg / 1000.0, players[ip].games, players[ip].win, players[ip].loss, (int)players[ip].des);
+			}
+		}
+		else
+		{
+			for (int ip = 0 ; ip < nb_players ; ip++)
+			{
+				printf("%3d %5s %8.2f  %6.1f  %6d  %5d - %-5d\n", players[ip].id, players[ip].label,
+					players[ip].rating, players[ip].avg / 1000.0, players[ip].games, players[ip].win, players[ip].loss);
+			}
 		}
 		long ts;
 		int last_game_id = LastGame(pgConn, &ts);
