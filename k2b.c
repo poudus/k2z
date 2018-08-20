@@ -23,7 +23,7 @@ typedef struct
 {
 	char	key[32];
 	int	count, win, loss;
-	double	hr, vr, ratio, dratio, elodif, dexpr;
+	double	hr, vr, trait_ratio, move_ratio, dratio, elodiff, dexpr;
 } POSITION;
 
 static POSITION gposition[10000];
@@ -118,8 +118,10 @@ int ip = 0, ifound = -1;
 		gposition[nb_positions].hr = 0.0;
 		gposition[nb_positions].vr = 0.0;
 		gposition[nb_positions].dratio = 0.0;
-		gposition[nb_positions].elodif = 0.0;
+		gposition[nb_positions].elodiff = 0.0;
 		gposition[nb_positions].dexpr = 0.0;
+		gposition[nb_positions].trait_ratio = 0.0;
+		gposition[nb_positions].move_ratio = 0.0;
 		ifound = nb_positions;
 		nb_positions++;
 	}
@@ -177,6 +179,7 @@ int	depth = 2, size = 12, nb_positions = 0, min_count = 5;
 			root[0] = 0;
 		int len_root = strlen(root);
 		char trait = (depth % 2 == 0 ? 'H' : 'V');
+		char cbest = (depth % 2 == 1 ? 'H' : 'V');
 		for (int ig = 0 ; ig < nb_games ; ig++)
 		{
 			if (strlen(games[ig].moves) >= 2 * depth)
@@ -189,55 +192,63 @@ int	depth = 2, size = 12, nb_positions = 0, min_count = 5;
 			}
 
 		}
-		printf("nb_positions = %d\n\n", nb_positions);
+		printf("nb_positions = %d\n", nb_positions);
+		printf("trait        = %c\n\n", trait);
 		for (int ip = 0 ; ip < nb_positions ; ip++)
 		{
 			if (gposition[ip].count > 0)
 			{
 				gposition[ip].hr /= gposition[ip].count;
 				gposition[ip].vr /= gposition[ip].count;
+				gposition[ip].trait_ratio = 100.0 * gposition[ip].win / gposition[ip].count;
+				gposition[ip].move_ratio = 100.0 * gposition[ip].loss / gposition[ip].count;
+
+				if (gposition[ip].trait_ratio > 0.0 && gposition[ip].trait_ratio < 100.0)
+					gposition[ip].elodiff = EloDifference(gposition[ip].trait_ratio / 100.0);
+				else if (gposition[ip].trait_ratio == 100.0)
+					gposition[ip].elodiff = 800;
+				else if (gposition[ip].trait_ratio == 0.0)
+					gposition[ip].elodiff = -800;
+
+				if (trait == 'H')
+				{
+					gposition[ip].dexpr = 100.0 * EloExpectedResult(gposition[ip].hr, gposition[ip].vr);
+					gposition[ip].elodiff -= (gposition[ip].hr - gposition[ip].vr);
+				}
+				else
+				{
+					gposition[ip].dexpr = 100.0 * EloExpectedResult(gposition[ip].vr, gposition[ip].hr);
+					gposition[ip].elodiff -= (gposition[ip].vr - gposition[ip].hr);
+				}
+				gposition[ip].dratio = gposition[ip].trait_ratio - gposition[ip].dexpr;
 			}
 			else
 			{
 				gposition[ip].hr = 0.0;
 				gposition[ip].vr = 0.0;
 			}
-			double elo_diff = 0.0;
-			gposition[ip].ratio = 100.0 * gposition[ip].win / gposition[ip].count;
-			if (gposition[ip].ratio > 0.0 && gposition[ip].ratio < 100.0)
-				elo_diff = EloDifference(gposition[ip].ratio / 100.0);
-			else if (gposition[ip].ratio == 100.0)
-				elo_diff = 800;
-			else if (gposition[ip].ratio == 0.0)
-				elo_diff = -800;
-			if (trait == 'H')
-			{
-				gposition[ip].elodif = elo_diff - gposition[ip].hr + gposition[ip].vr;
-				gposition[ip].dexpr = 100.0 * EloExpectedResult(gposition[ip].hr, gposition[ip].vr);
-			}
-			else
-			{
-				gposition[ip].elodif = elo_diff - gposition[ip].vr + gposition[ip].hr;
-				gposition[ip].dexpr = 100.0 * EloExpectedResult(gposition[ip].vr, gposition[ip].hr);
-			}
-			gposition[ip].dratio = gposition[ip].ratio - gposition[ip].dexpr;
-			//gposition[ip].elodif = EloDifference(gposition[ip].dratio / 100.0);
 		}
+
 		qsort(&gposition[0], nb_positions, sizeof(POSITION), cmppos);
+
 		int nb_keys = 0;
-		//double avg_elo = 0.0;
 		for (int ip = 0 ; ip < nb_positions ; ip++)
 		{
 			if (gposition[ip].count >= min_count && (len_root == 0 || strncmp(root, gposition[ip].key, len_root) == 0))
 			{
 				//avg_elo = (gposition[ip].wr*gposition[ip].win+gposition[ip].lr*gposition[ip].loss) / gposition[ip].count;
-				printf("%s   %6.2f %%   %4d - %-4d   [ %3d %%  %5d ]  %4d - %-4d  { %5.2f %% }\n", gposition[ip].key, gposition[ip].ratio,
+				printf("%s   %6.2f %%   %4d - %-4d   [ %3d %%  %5d ]  %4d - %-4d  { %5.2f %% }\n",
+					gposition[ip].key, gposition[ip].trait_ratio,
 					gposition[ip].win, gposition[ip].loss,
-					(int)gposition[ip].dratio, (int)gposition[ip].elodif,
+					(int)gposition[ip].dratio, (int)gposition[ip].elodiff,
 					(int)gposition[ip].hr, (int)gposition[ip].vr, gposition[ip].dexpr);
 				nb_keys++;
 			}
 		}
+		//for (int ic = 0 ; ic < len_root ; ic++)
+		//	buf[ic] = ' ';
+		buf[len_root] = 0;
+		printf("\n%c best move %d\n", cbest, depth);
 		printf("\n%d entries\n\n", nb_keys);
 	}
 	else

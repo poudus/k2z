@@ -15,7 +15,7 @@ typedef struct
 {
 	int id, depth, max_moves, games, win, loss;
 	char label[16];
-	double rating, avg, des;
+	double rating, avg, des, ratio;
 } PLAYER;
 
 int LoadPlayers(PGconn *pgConn, PLAYER *pp)
@@ -40,6 +40,7 @@ char query[256];
 				pp->win = atoi(PQgetvalue(pgres, ip, 4));
 				pp->loss = atoi(PQgetvalue(pgres, ip, 5));
 				pp->avg = 0.0;
+				pp->ratio = 0.0;
 				sprintf(pp->label, "%1d/%-2d", pp->depth, pp->max_moves);
 				pp++;
 			}
@@ -124,7 +125,7 @@ bool	byavgmd = false;
 		sprintf(database_name, "k%s", argv[1]);
 		pgConn = pgOpenConn(database_name, "k2", "", buffer_error);
 		//printf("database connection     = %p %s\n", pgConn, database_name);
-		printf("\npid  d/mm   rating   avgmd   games    win   loss     e/s\n--------------------------------------------------------\n");
+		printf("\npid  d/mm   rating   avgmd   games    win   loss   ratio %%    e/s\n-----------------------------------------------------------------\n");
 		int nb_players = LoadPlayers(pgConn, &players[0]);
 		if (argc > 2)
 		{
@@ -144,6 +145,8 @@ bool	byavgmd = false;
 			players[ip].avg = avg;
 			players[ip].games = ch + cv;
 			players[ip].des = 0.0;
+			if (players[ip].games > 0)
+				players[ip].ratio = 100.0 * players[ip].win / players[ip].games;
 		}
 		if (byavgmd)
 		{
@@ -152,16 +155,19 @@ bool	byavgmd = false;
 			{
 				if (ip < nb_players -1)
 					players[ip].des = 1000.0 * (players[ip].rating - players[ip+1].rating) / (players[ip].avg - players[ip+1].avg);
-				printf("%3d %5s %8.2f  %6.1f  %6d  %5d - %-5d   %4d\n", players[ip].id, players[ip].label,
-					players[ip].rating, players[ip].avg / 1000.0, players[ip].games, players[ip].win, players[ip].loss, (int)players[ip].des);
+				printf("%3d %5s %8.2f  %6.1f  %6d  %5d - %-5d  %5.1f %%   %4d\n", players[ip].id, players[ip].label,
+					players[ip].rating, players[ip].avg / 1000.0,
+					players[ip].games, players[ip].win, players[ip].loss, players[ip].ratio,
+					(int)players[ip].des);
 			}
 		}
 		else
 		{
 			for (int ip = 0 ; ip < nb_players ; ip++)
 			{
-				printf("%3d %5s %8.2f  %6.1f  %6d  %5d - %-5d\n", players[ip].id, players[ip].label,
-					players[ip].rating, players[ip].avg / 1000.0, players[ip].games, players[ip].win, players[ip].loss);
+				printf("%3d %5s %8.2f  %6.1f  %6d  %5d - %-5d  %5.1f %%\n", players[ip].id, players[ip].label,
+					players[ip].rating, players[ip].avg / 1000.0,
+					players[ip].games, players[ip].win, players[ip].loss, players[ip].ratio);
 			}
 		}
 		long ts;

@@ -473,20 +473,46 @@ struct timeval t_begin, t_end;
 			channel, winner, reason, move_number, (int)duration(&t_begin, &t_end)/1000);
 }
 
+double RD3(double dbase, double range)
+{
+	int rnd = rand() % 3;
+	if (rnd == 0)
+		return dbase;
+	else if (rnd == 1)
+		return dbase + range;
+	else
+		return dbase - range;
+}
+
+double RD5(double dbase, double range)
+{
+	int rnd = rand() % 5;
+	if (rnd == 0)
+		return dbase;
+	else if (rnd == 1)
+		return dbase + range;
+	else if (rnd == 2)
+		return dbase + 2*range;
+	else if (rnd == 3)
+		return dbase - range;
+	else
+		return dbase - 2*range;
+}
+
 // ==========
 //    main
 // ==========
 int main(int argc, char* argv[])
 {
 int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 300, live_loop = 100, wait_live = 60;
-int hp_min = 1, hp_max = 12;
-int vp_min = 1, vp_max = 12;
+int hp_min = 1, hp_max = 16;
+int vp_min = 1, vp_max = 16;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0;
 double lambda_decay = 0.8, opponent_decay = 0.8;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
 BOARD board;
 TRACK zemoves[512];
-char buffer_error[512], database_name[32];
+char buffer_error[512], database_name[32], mcts[128], buffer[128];
 PGconn *pgConn = NULL;
 
 	printf("K2Z.engine-version=1.5\n");
@@ -514,6 +540,7 @@ PGconn *pgConn = NULL;
 		printf("error.invalid-size-parameter\n");
 		return -1;
 	}
+	mcts[0] = 0;
 	unsigned long ul_allocated = init_board(&board, width, height, slambda, sdirection);
 	if (ul_allocated > 0)
 	{
@@ -944,7 +971,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 							{
 								if (orientation == 'H')
 								{
-							eval_orientation(&board, current_state, orientation, hpp.lambda_decay, wpegs, wlinks, wzeta, true);
+		eval_orientation(&board, current_state, orientation, RD3(hpp.lambda_decay, 0.1), wpegs, wlinks, wzeta, true);
 									if (empty_field(&state_h.horizontal))
 									{
 										printf("H resign\n");
@@ -962,7 +989,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 								}
 								else
 								{
-							eval_orientation(&board, current_state, orientation, vpp.lambda_decay, wpegs, wlinks, wzeta, true);
+		eval_orientation(&board, current_state, orientation, RD3(vpp.lambda_decay, 0.1), wpegs, wlinks, wzeta, true);
 									if (empty_field(&state_v.vertical))
 									{
 										printf("V resign\n");
@@ -986,11 +1013,29 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 								{
 									if (move_number == 0)
 									{
-									msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*offset));
+										if (strlen(mcts) >= 2)
+										{
+										strcpy(buffer, mcts);
+										buffer[2] = 0;
+										msid = parse_slot(&board, buffer);
+										printf("mcts[%d] = %d/%s\n", move_number, msid, board.slot[msid].code);
+										}
+										else
+		msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*offset));
 									}
 									else
 									{
-		msid = think_alpha_beta(&board, current_state, orientation, hpp.depth, hpp.max_moves, hpp.lambda_decay, hpp.opp_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
+										if (strlen(mcts) > 2 * move_number)
+										{
+										strcpy(buffer, &mcts[2 * move_number]);
+										buffer[2] = 0;
+										msid = parse_slot(&board, buffer);
+										printf("mcts[%d] = %d/%s\n", move_number, msid, board.slot[msid].code);
+										}
+										else
+		msid = think_alpha_beta(&board, current_state, orientation, hpp.depth, hpp.max_moves,
+				RD3(hpp.lambda_decay, 0.1), RD3(hpp.opp_decay, 0.1),
+				wpegs, wlinks, wzeta, &alpha_beta_eval);
 									}
 									move(&board, &state_h, &state_v, msid, orientation);
 									orientation = 'V';
@@ -998,7 +1043,17 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 								}
 								else
 								{
-		msid = think_alpha_beta(&board, current_state, orientation, vpp.depth, vpp.max_moves, vpp.lambda_decay, vpp.opp_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
+									if (strlen(mcts) > 2 * move_number)
+									{
+									strcpy(buffer, &mcts[2 * move_number]);
+									buffer[2] = 0;
+									msid = parse_slot(&board, buffer);
+									printf("mcts[%d] = %d/%s\n", move_number, msid, board.slot[msid].code);
+									}
+									else
+		msid = think_alpha_beta(&board, current_state, orientation, vpp.depth, vpp.max_moves,
+				RD3(vpp.lambda_decay, 0.1), RD3(vpp.opp_decay, 0.1),
+				wpegs, wlinks, wzeta, &alpha_beta_eval);
 									move(&board, &state_v, &state_h, msid, orientation);
 									orientation = 'H';
 									current_state = &state_h;
@@ -1078,6 +1133,8 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 						}
 					}
 				}
+				else if (strcmp("mcts", action) == 0)
+					strcpy(mcts, parameters);
 				else if (strcmp("parameters", action) == 0)
 				{
 					printf("lambda-decay   = %6.3f\n", lambda_decay);
@@ -1094,6 +1151,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 					printf("live-timeout   = %3d\n", live_timeout);
 					printf("live-loop      = %3d\n", live_loop);
 					printf("wait-live      = %4d\n", wait_live);
+					printf("mcts           = %s\n", mcts);
 				}
 				else if (strcmp("position", action) == 0) // 
 				{
