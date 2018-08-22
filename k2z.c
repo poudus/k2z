@@ -540,6 +540,50 @@ PGconn *pgConn = NULL;
 		printf("error.invalid-size-parameter\n");
 		return -1;
 	}
+	//----------
+	int nb_params = 0;
+	char paramline[128];
+	FILE *fp = fopen("./parameters.default", "r");
+	if (fp != NULL)
+	{
+		while (fgets(paramline, 120, fp) != NULL)
+		{
+			if (strlen(paramline) > 0)
+			{
+				int plen = strlen(paramline);
+				char *pvalue = NULL;
+				for (int ic = 0 ; ic < plen ; ic++)
+				{
+					if (paramline[ic] == '=')
+					{
+						paramline[ic] = 0;
+						pvalue = &paramline[ic+1];
+					}
+				}
+				if (pvalue != NULL && *pvalue != 0)
+				{
+					double dvalue = atof(pvalue);
+					int ivalue = atoi(pvalue);
+					bool bp = true;
+					if (strcmp(paramline, "lambda-decay") == 0) lambda_decay = dvalue;
+					else if (strcmp(paramline, "opponnent-decay") == 0) opponent_decay = dvalue;
+					else if (strcmp(paramline, "max-moves") == 0) max_moves = ivalue;
+					else if (strcmp(paramline, "wzeta") == 0) wzeta = dvalue;
+					else if (strcmp(paramline, "hp-min") == 0) hp_min = ivalue;
+					else if (strcmp(paramline, "hp-max") == 0) hp_max = ivalue;
+					else if (strcmp(paramline, "vp-min") == 0) vp_min = ivalue;
+					else if (strcmp(paramline, "vp-max") == 0) vp_max = ivalue;
+					else if (strcmp(paramline, "offset") == 0) offset = ivalue;
+					else if (strcmp(paramline, "live-timeout") == 0) live_timeout = ivalue;
+					else if (strcmp(paramline, "live-loop") == 0) live_loop = ivalue;
+					else if (strcmp(paramline, "wait-live") == 0) wait_live = ivalue;
+					nb_params++;
+				}
+			}
+		}
+		printf("\nparameters.default file loaded, %d parameters set.\n\n", nb_params);
+	}
+	//----------
 	mcts[0] = 0;
 	unsigned long ul_allocated = init_board(&board, width, height, slambda, sdirection);
 	if (ul_allocated > 0)
