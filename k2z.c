@@ -574,7 +574,7 @@ int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offse
 int hp_min = 1, hp_max = 16;
 int vp_min = 1, vp_max = 16;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0;
-double lambda_decay = 0.8, opponent_decay = 0.8, alpha_ratio = 0.4;
+double lambda_decay = 0.8, opponent_decay = 0.8, alpha_ratio = 0.4, random_decay = 0.1;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
 BOARD board;
 TRACK zemoves[512];
@@ -650,6 +650,7 @@ PGconn *pgConn = NULL;
 					else if (strcmp(paramline, "live-loop") == 0) live_loop = ivalue;
 					else if (strcmp(paramline, "wait-live") == 0) wait_live = ivalue;
 					else if (strcmp(paramline, "alpha-ratio") == 0) alpha_ratio = dvalue;
+					else if (strcmp(paramline, "random-decay") == 0) random_decay = dvalue;
 					nb_params++;
 				}
 			}
@@ -1088,7 +1089,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 							{
 								if (orientation == 'H')
 								{
-		eval_orientation(&board, current_state, orientation, RD3(hpp.lambda_decay, 0.1), wpegs, wlinks, wzeta, true);
+		eval_orientation(&board, current_state, orientation, RD3(hpp.lambda_decay, random_decay), wpegs, wlinks, wzeta, true);
 									if (empty_field(&state_h.horizontal))
 									{
 										printf("H resign\n");
@@ -1106,7 +1107,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 								}
 								else
 								{
-		eval_orientation(&board, current_state, orientation, RD3(vpp.lambda_decay, 0.1), wpegs, wlinks, wzeta, true);
+		eval_orientation(&board, current_state, orientation, RD3(vpp.lambda_decay, random_decay), wpegs, wlinks, wzeta, true);
 									if (empty_field(&state_v.vertical))
 									{
 										printf("V resign\n");
@@ -1151,7 +1152,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 										}
 										else
 		msid = think_alpha_beta(&board, current_state, orientation, hpp.depth, hpp.max_moves,
-				RD3(hpp.lambda_decay, 0.1), RD3(hpp.opp_decay, 0.1),
+				RD3(hpp.lambda_decay, random_decay), RD3(hpp.opp_decay, random_decay),
 				wpegs, wlinks, wzeta, &alpha_beta_eval);
 									}
 									move(&board, &state_h, &state_v, msid, orientation);
@@ -1165,7 +1166,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 										int tslots[256];
 				int nb_tslots = triangle_opposition_board(&board, board.slot[msid].x, board.slot[msid].y, 'H', alpha_ratio, &tslots[0]);
 										msid = tslots[rand() % nb_tslots];
-										printf("opp[%02d]= %3d/%s\n", nb_tslots, msid, board.slot[msid].code);
+										printf("tos/%02d = %3d/%s\n", nb_tslots, msid, board.slot[msid].code);
 									}
 									else
 									{
@@ -1178,12 +1179,12 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 										}
 										else
 			msid = think_alpha_beta(&board, current_state, orientation, vpp.depth, vpp.max_moves,
-					RD3(vpp.lambda_decay, 0.1), RD3(vpp.opp_decay, 0.1),
+					RD3(vpp.lambda_decay, random_decay), RD3(vpp.opp_decay, random_decay),
 					wpegs, wlinks, wzeta, &alpha_beta_eval);
-										move(&board, &state_v, &state_h, msid, orientation);
-										orientation = 'H';
-										current_state = &state_h;
 									}
+									move(&board, &state_v, &state_h, msid, orientation);
+									orientation = 'H';
+									current_state = &state_h;
 								}
 								strcat(current_game_moves, board.slot[msid].code);
 								move_number++;
@@ -1256,6 +1257,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 							else if (strcmp(parameters, "live-loop") == 0) live_loop = ivalue;
 							else if (strcmp(parameters, "wait-live") == 0) wait_live = ivalue;
 							else if (strcmp(parameters, "alpha-ratio") == 0) alpha_ratio = dvalue;
+							else if (strcmp(parameters, "random-decay") == 0) random_decay = dvalue;
 							else bp = false;
 							if (bp) printf("parameter %s set to %6.3f\n", parameters, dvalue);
 						}
@@ -1280,7 +1282,8 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 					printf("live-loop      = %3d\n", live_loop);
 					printf("wait-live      = %4d\n", wait_live);
 					printf("mcts           = %s\n", mcts);
-					printf("alpha-ratio    = %6.3f\n", alpha_ratio);
+					printf("alpha-ratio    = %5.2f\n", alpha_ratio);
+					printf("random-decay    = %5.2f\n", random_decay);
 				}
 				else if (strcmp("position", action) == 0) // 
 				{
