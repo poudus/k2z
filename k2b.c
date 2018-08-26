@@ -205,10 +205,10 @@ int	depth = 2, size = 12, nb_positions = 0, min_count = 5;
 
 				if (gposition[ip].trait_ratio > 0.0 && gposition[ip].trait_ratio < 100.0)
 					gposition[ip].elodiff = EloDifference(gposition[ip].trait_ratio / 100.0);
-				else if (gposition[ip].trait_ratio == 100.0)
-					gposition[ip].elodiff = 800;
+				else if (gposition[ip].trait_ratio > 99.999)
+					gposition[ip].elodiff = 1000;
 				else if (gposition[ip].trait_ratio == 0.0)
-					gposition[ip].elodiff = -800;
+					gposition[ip].elodiff = -1000;
 
 				if (trait == 'H')
 				{

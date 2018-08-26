@@ -308,9 +308,9 @@ TRACK zemoves[1024];
 		double dms = duration(&t0, &t_end) / 1000.0;
 
 		int max_pos = pow(max_moves, depth);
-		printf("alpha_beta(%d,%2d) = %6.2f %%   sid = %4d/%s  duration = %6.2f  sec    prunning = %4.2f %%  %7d/%-8d   %6.2f pos/sec\n",
+		printf("alpha_beta(%d,%2d) = %6.2f %%   sid = %4d/%s  %6.2f sec  pr = %4.2f %% %7d/%-8d %4d p/s\n",
 			depth, max_moves, *eval, sid, board->slot[sid].code, dms, (double)100.0*(max_pos-gst_calls)/(double)max_pos, gst_calls,
-			max_pos, gst_calls/dms);
+			max_pos, (int)(gst_calls/dms));
 	}
 	return sid;
 }
@@ -321,6 +321,72 @@ int parse_slot(BOARD *board, char *pslot)
 	if (strlen(pslot) == 2 && isupper((int)pslot[0]) && isupper((int)pslot[1]))
 		return find_slot(board, pslot);
 	else return atoi(pslot);
+}
+
+int triangle_opposition(int width, int height, int x, int y, char orientation, double alpha_ratio, int *px, int *py)
+{
+int distance = 0, direction = 0, slots = 0;
+
+	if (orientation == 'H')
+	{
+		int sx = 0, x0 = 0, xn = 0;
+		double alpha_up = 0.0, alpha_down = 0.0;
+		//double ddr = (double)(height-1.0) * alpha_ratio;
+		double ddr = (height - 1.0) * (1.0 - alpha_ratio) / 2.0;
+		double y13 = ddr;
+		double y23 = height - 1.0 - ddr;
+		if (x < width/2)
+		{
+			distance = width - x -2;
+			direction = 1;
+			sx = 10;
+			x0 = x + 2;
+			xn = width - 2 -distance/3;
+			alpha_up = (double)(y - y13) / (double)distance;
+			alpha_down = (double)(y - y23) / (double)distance;
+		}
+		else
+		{
+			distance = x-1;
+			direction = -1;
+			sx = 1;
+			x0 = 1 + distance/3;
+			xn = x - 2;
+			alpha_up = (double)(y - y13) / (double)distance;
+			alpha_down = (double)(y - y23) / (double)distance;
+		}
+		//printf("distance = %d  up = %5.2f  down = %5.2f  y13 = %4.2f  y23 = %4.2f\n", distance, alpha_up, alpha_down, y13, y23);
+		for (int xx = x0 ; xx <= xn ; xx++)
+		{
+			for (int yy = 3 ; yy <= 9 ; yy++)
+			{
+				double a = direction * (double)(y - yy) / (double)(xx - x);
+				if (a >= alpha_down && a <= alpha_up)
+				{
+					*px = xx;
+					*py = yy;
+					px++;
+					py++;
+					slots++;
+					//printf("T %d/%d  a = %5.2f\n", xx, yy, a);
+				}
+			}
+		}
+	}
+	return slots;
+}
+
+int triangle_opposition_board(BOARD *board, int x, int y, char orientation, double alpha_ratio, int *slots)
+{
+int px[256], py[256];
+
+	int nb_slots = triangle_opposition(board->width, board->height, x, y, orientation, alpha_ratio, &px[0], &py[0]);
+	for (int s = 0 ; s < nb_slots ; s++)
+	{
+		*slots = find_xy(board, px[s], py[s]);
+		slots++;
+	}
+	return nb_slots;
 }
 
 //
@@ -508,12 +574,18 @@ int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offse
 int hp_min = 1, hp_max = 16;
 int vp_min = 1, vp_max = 16;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0;
-double lambda_decay = 0.8, opponent_decay = 0.8;
+double lambda_decay = 0.8, opponent_decay = 0.8, alpha_ratio = 0.4;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
 BOARD board;
 TRACK zemoves[512];
 char buffer_error[512], database_name[32], mcts[128], buffer[128];
 PGconn *pgConn = NULL;
+
+	/*
+	int px[256], py[256];
+	int nb_tslots = triangle_opposition(width, height, 2, 6, 'H', &px[0], &py[0]);
+	exit(0);
+	*/
 
 	printf("K2Z.engine-version=1.5\n");
 	gettimeofday(&t0, NULL);
@@ -577,6 +649,7 @@ PGconn *pgConn = NULL;
 					else if (strcmp(paramline, "live-timeout") == 0) live_timeout = ivalue;
 					else if (strcmp(paramline, "live-loop") == 0) live_loop = ivalue;
 					else if (strcmp(paramline, "wait-live") == 0) wait_live = ivalue;
+					else if (strcmp(paramline, "alpha-ratio") == 0) alpha_ratio = dvalue;
 					nb_params++;
 				}
 			}
@@ -756,7 +829,7 @@ PGconn *pgConn = NULL;
 					}
 					int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves,
 							lambda_decay, opponent_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
-					printf("think-move(%d)%4d/%s\n", depth, msid, board.slot[msid].code);
+					printf("think-move(%d,%2d) = %3d/%s\n", depth, max_moves, msid, board.slot[msid].code);
 				}
 				else if (strcmp("play", action) == 0)
 				{
@@ -1062,7 +1135,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 										strcpy(buffer, mcts);
 										buffer[2] = 0;
 										msid = parse_slot(&board, buffer);
-										printf("mcts[%d] = %d/%s\n", move_number, msid, board.slot[msid].code);
+										printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
 										}
 										else
 		msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*offset));
@@ -1074,7 +1147,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 										strcpy(buffer, &mcts[2 * move_number]);
 										buffer[2] = 0;
 										msid = parse_slot(&board, buffer);
-										printf("mcts[%d] = %d/%s\n", move_number, msid, board.slot[msid].code);
+										printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
 										}
 										else
 		msid = think_alpha_beta(&board, current_state, orientation, hpp.depth, hpp.max_moves,
@@ -1087,26 +1160,36 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 								}
 								else
 								{
-									if (strlen(mcts) > 2 * move_number)
+									if (move_number == 1 && alpha_ratio >= 0.2 && alpha_ratio <= 0.6)
 									{
-									strcpy(buffer, &mcts[2 * move_number]);
-									buffer[2] = 0;
-									msid = parse_slot(&board, buffer);
-									printf("mcts[%d] = %d/%s\n", move_number, msid, board.slot[msid].code);
+										int tslots[256];
+				int nb_tslots = triangle_opposition_board(&board, board.slot[msid].x, board.slot[msid].y, 'H', alpha_ratio, &tslots[0]);
+										msid = tslots[rand() % nb_tslots];
+										printf("opp[%02d]= %3d/%s\n", nb_tslots, msid, board.slot[msid].code);
 									}
 									else
-		msid = think_alpha_beta(&board, current_state, orientation, vpp.depth, vpp.max_moves,
-				RD3(vpp.lambda_decay, 0.1), RD3(vpp.opp_decay, 0.1),
-				wpegs, wlinks, wzeta, &alpha_beta_eval);
-									move(&board, &state_v, &state_h, msid, orientation);
-									orientation = 'H';
-									current_state = &state_h;
+									{
+										if (strlen(mcts) > 2 * move_number)
+										{
+										strcpy(buffer, &mcts[2 * move_number]);
+										buffer[2] = 0;
+										msid = parse_slot(&board, buffer);
+										printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
+										}
+										else
+			msid = think_alpha_beta(&board, current_state, orientation, vpp.depth, vpp.max_moves,
+					RD3(vpp.lambda_decay, 0.1), RD3(vpp.opp_decay, 0.1),
+					wpegs, wlinks, wzeta, &alpha_beta_eval);
+										move(&board, &state_v, &state_h, msid, orientation);
+										orientation = 'H';
+										current_state = &state_h;
+									}
 								}
 								strcat(current_game_moves, board.slot[msid].code);
 								move_number++;
-								printf("play %d: %d/%s\n", move_number, msid, board.slot[msid].code);
+								printf("play %d : %3d/%s\n", move_number, msid, board.slot[msid].code);
 								eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
-								printf("---------- next move %c ----------\n", orientation);
+								printf("---------- move  %c --------\n", orientation);
 							}
 							gettimeofday(&t_end, NULL);
 							if (orientation == 'H')
@@ -1172,6 +1255,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 							else if (strcmp(parameters, "live-timeout") == 0) live_timeout = ivalue;
 							else if (strcmp(parameters, "live-loop") == 0) live_loop = ivalue;
 							else if (strcmp(parameters, "wait-live") == 0) wait_live = ivalue;
+							else if (strcmp(parameters, "alpha-ratio") == 0) alpha_ratio = dvalue;
 							else bp = false;
 							if (bp) printf("parameter %s set to %6.3f\n", parameters, dvalue);
 						}
@@ -1196,6 +1280,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 					printf("live-loop      = %3d\n", live_loop);
 					printf("wait-live      = %4d\n", wait_live);
 					printf("mcts           = %s\n", mcts);
+					printf("alpha-ratio    = %6.3f\n", alpha_ratio);
 				}
 				else if (strcmp("position", action) == 0) // 
 				{
