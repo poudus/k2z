@@ -161,7 +161,7 @@ int lowest_lambda = 99;
 		if (dscore > 98.0) dscore = 98.0;
 		else if (dscore < 2.0) dscore = 2.0;
 	}
-	if (dscore > 100.0 || dscore < 0.0)
+	if (dscore > 100.01 || dscore < 0.0)
 	{
 		printf("lowest_lambda = %2d  score = %6.2f\n", lowest_lambda, dscore);
 		exit(-1);
@@ -633,6 +633,25 @@ void free_state(STATE *state)
 {
 	free(state->horizontal.wave);
 	free(state->vertical.wave);
+}
+
+
+char* state_signature(BOARD *board, STATE *state, char *signature)
+{
+	*signature = 0;
+	for (int p = 0 ; p < state->horizontal.pegs ; p++)
+		strcat(signature, board->slot[state->horizontal.peg[p]].code);
+	strcat(signature, "-");
+	for (int l = 0 ; l < state->horizontal.links ; l++)
+		strcat(signature, board->step[state->horizontal.link[l]].code);
+	strcat(signature, "+");
+	for (int p = 0 ; p < state->vertical.pegs ; p++)
+		strcat(signature, board->slot[state->vertical.peg[p]].code);
+	strcat(signature, "-");
+	for (int l = 0 ; l < state->vertical.links ; l++)
+		strcat(signature, board->step[state->vertical.link[l]].code);
+
+	return signature;
 }
 
 

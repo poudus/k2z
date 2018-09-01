@@ -556,8 +556,8 @@ bool RegisterLive(PGconn *pgConn, int channel, int hp)
 	unsigned long long uts = getCurrentUTS();
 	int pid = getpid();
 
-	pgExecFormat(pgConn, &nbc, "insert into k2s.live values (%d, %llu, %d, %d, %d, %d, '%s', '%c', '%s', %d, '%c', '%c')",
-				channel, uts, hp, 0, pid, 0, "", 'H', "  ", 0, ' ', ' ');
+	pgExecFormat(pgConn, &nbc, "insert into k2s.live values (%d, %llu, %d, %d, %d, %d, '%s', '%s', '%c', '%s', %d, '%c', '%c')",
+				channel, uts, hp, 0, pid, 0, "", "", 'H', "  ", 0, ' ', ' ');
 	return nbc == 1;
 }
 
@@ -589,7 +589,7 @@ char query[256];
 	} else return false;
 }
 
-bool PlayLive(PGconn *pgConn, int channel, char orientation, char *move, char *moves)
+bool PlayLive(PGconn *pgConn, int channel, char orientation, char *move, char *moves, char *signature)
 {
 	int nbc = 0;
 	unsigned long long uts = getCurrentUTS();
@@ -604,8 +604,8 @@ bool PlayLive(PGconn *pgConn, int channel, char orientation, char *move, char *m
 	int nb_moves = strlen(moves) / 2;
 
 	pgExecFormat(pgConn, &nbc,
-	"update k2s.live set last_move = '%s', moves = '%s', ts = %llu, trait = '%c', length = %d where channel = %d and trait = '%c' and moves = '%s' and winner = ' '",
-		move, moves, uts, trait, nb_moves, channel, orientation, buf_moves);
+	"update k2s.live set last_move = '%s', moves = '%s', ts = %llu, trait = '%c', length = %d, signature = '%s' where channel = %d and trait = '%c' and moves = '%s' and winner = ' '",
+		move, moves, uts, trait, nb_moves, signature, channel, orientation, buf_moves);
 	return nbc == 1;
 }
 

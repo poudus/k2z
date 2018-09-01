@@ -45,7 +45,7 @@ bool JoinLive(PGconn *pgConn, int channel, int vp);
 void PrintLive(PGconn *pgConn, int channel);
 bool DeleteLive(PGconn *pgConn, int channel);
 bool CheckLive(PGconn *pgConn, int channel, char orientation, char *last_move, char *moves);
-bool PlayLive(PGconn *pgConn, int channel, char orientation, char *move, char *moves);
+bool PlayLive(PGconn *pgConn, int channel, char orientation, char *move, char *moves, char *signature);
 bool ResignLive(PGconn *pgConn, int channel, char winner, char reason);
 bool CheckResign(PGconn *pgConn, int channel, char orientation, char *moves);
 bool WinLive(PGconn *pgConn, int channel, char winner, char reason);

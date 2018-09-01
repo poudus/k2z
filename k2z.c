@@ -307,8 +307,8 @@ TRACK zemoves[1024];
 		gettimeofday(&t_end, NULL);
 		double dms = duration(&t0, &t_end) / 1000.0;
 
-		int max_pos = pow(max_moves, depth);
-		printf("alpha_beta(%d,%2d) = %6.2f %%   sid = %4d/%s  %6.2f sec  pr = %4.2f %% %7d/%-8d %4d p/s\n",
+		long max_pos = pow(max_moves, depth);
+		printf("alpha_beta(%d,%2d) = %6.2f %%   sid = %4d/%s  %6.2f sec  pr = %4.2f %% %7d/%-10ld %4d p/s\n",
 			depth, max_moves, *eval, sid, board->slot[sid].code, dms, (double)100.0*(max_pos-gst_calls)/(double)max_pos, gst_calls,
 			max_pos, (int)(gst_calls/dms));
 	}
@@ -395,7 +395,7 @@ int px[256], py[256];
 void GameLive(PGconn *pgConn, BOARD *board, int channel, char orientation, int pid, int timeout, int offset, int opid)
 {
 bool end_of_game = false;
-char last_move[8], zmove[8], moves[128], winner = ' ', reason = ' ', opp_orientation = 'H';
+char last_move[8], zmove[8], moves[128], winner = ' ', reason = ' ', opp_orientation = 'H', buffer[256];
 int  tick = 0, slot = 0, move_number = 0, depth = 2, max_moves = 20, msid = 0, total_think_duration = 0, total_wait_duration = 0;
 STATE my_state, new_state;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, lambda_decay = 0.8, opponent_decay = 0.8, alpha_beta_eval = 0.0;
@@ -468,7 +468,7 @@ struct timeval t_begin, t_end;
 				strcpy(zmove, board->slot[msid].code);
 				move_number++;
 				//-----------
-				if (PlayLive(pgConn, channel, orientation, zmove, moves))
+				if (PlayLive(pgConn, channel, orientation, zmove, moves, state_signature(board, &new_state, buffer)))
 				{
 					tick = 0;
 					double dwq2 = eval_orientation(board, &new_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
@@ -587,7 +587,11 @@ PGconn *pgConn = NULL;
 	exit(0);
 	*/
 
-	printf("K2Z.engine-version=1.5\n");
+	buffer_error[0] = 0;
+#ifdef __ZETA__
+	strcpy(buffer_error, "ZETA");
+#endif
+	printf("version=%s %s  %s\n", __DATE__, __TIME__, buffer_error);
 	gettimeofday(&t0, NULL);
 	srand(t0.tv_sec);
 	if (argc > 1 && strlen(argv[1]) == 5)
@@ -1164,7 +1168,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 									if (move_number == 1 && alpha_ratio >= 0.2 && alpha_ratio <= 0.6)
 									{
 										int tslots[256];
-				int nb_tslots = triangle_opposition_board(&board, board.slot[msid].x, board.slot[msid].y, 'H', alpha_ratio, &tslots[0]);
+			int nb_tslots = triangle_opposition_board(&board, board.slot[msid].x, board.slot[msid].y, 'H', alpha_ratio, &tslots[0]);
 										msid = tslots[rand() % nb_tslots];
 										printf("tos/%02d = %3d/%s\n", nb_tslots, msid, board.slot[msid].code);
 									}
@@ -1215,7 +1219,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 
 						if (strlen(current_game_moves) > 128)
 							current_game_moves[128] = 0;
-				int game_id = insertGame(pgConn, hpp.pid, vpp.pid, current_game_moves, winner, reason, duration(&t0_game, &tend_game), mh, mv);
+	int game_id = insertGame(pgConn, hpp.pid, vpp.pid, current_game_moves, winner, reason, duration(&t0_game, &tend_game), mh, mv);
 						printf("saved as  = %6d\n\n", game_id);
 					}
 					// ---
@@ -1283,11 +1287,11 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 					printf("wait-live      = %4d\n", wait_live);
 					printf("mcts           = %s\n", mcts);
 					printf("alpha-ratio    = %5.2f\n", alpha_ratio);
-					printf("random-decay    = %5.2f\n", random_decay);
+					printf("random-decay   = %5.2f\n", random_decay);
 				}
 				else if (strcmp("position", action) == 0) // 
 				{
-					char zsmov[8];
+					char zsmov[512];
 					int lenp = strlen(current_game_moves)/2;
 					printf("moves = %s  (%d)\n", current_game_moves, lenp);
 					printf("trait = %c\n", orientation);
@@ -1300,6 +1304,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 						printf(" %d-%s", imove+1, zsmov);
 					}
 					printf(" }\n");
+					printf("sign  = %s\n\n", state_signature(&board, current_state, zsmov));
 				}
 				else if (strcmp("slot", action) == 0)
 				{
