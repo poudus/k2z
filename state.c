@@ -356,7 +356,7 @@ int hpaths = 0, sx = 0, hp = 0;
 		}
 #endif
 	}
-	if (debug_state) printf("slot = %3d  hpaths = %8d  sx = %6d\n", slot, hpaths, sx);
+	//if (debug_state) printf("slot = %3d  hpaths = %8d  sx = %6d\n", slot, hpaths, sx);
 }
 
 //
@@ -381,7 +381,7 @@ int vpaths = 0, sx = 0, vp = 0;
 		}
 #endif
 	}
-	if (debug_state) printf("slot = %3d  vpaths = %8d  sx = %6d\n", slot, vpaths, sx);
+	//if (debug_state) printf("slot = %3d  vpaths = %8d  sx = %6d\n", slot, vpaths, sx);
 }
 
 //
@@ -393,7 +393,7 @@ void op_hpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 	{
 		wave[board->slot[slot].hpath[h]].status = 'X';
 	}
-	if (debug_state) printf("slot[%4d     ] = %8d vx\n", slot, board->slot[slot].hpaths);
+	//if (debug_state) printf("slot[%4d     ] = %8d vx\n", slot, board->slot[slot].hpaths);
 }
 
 //
@@ -403,11 +403,9 @@ void op_vpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 {
 	for (int v = 0 ; v < board->slot[slot].vpaths ; v++)
 	{
-		int vp = board->slot[slot].vpath[v];
-		wave[vp].status = 'X';
-		if (debug_state && vp == 42979) printf(" vpath 42979 cut\n");
+		wave[board->slot[slot].vpath[v]].status = 'X';
 	}
-	if (debug_state) printf("slot[%4d     ] = %8d hx\n", slot, board->slot[slot].vpaths);
+	//if (debug_state) printf("slot[%4d     ] = %8d hx\n", slot, board->slot[slot].vpaths);
 }
 
 //
@@ -415,19 +413,20 @@ void op_vpeg(BOARD *board, unsigned short slot, WAVE *wave, int waves)
 //
 void cut_hlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 {
-int	nb = 0;
+int	nb = 0, sc = 0, nb_hpaths = 0;
 
 	for (int c = 0 ; c < board->step[step].cuts ; c++)
 	{
-		int sc = board->step[step].cut[c];
-		if (debug_state) printf("xcut[%4d/%4s] = %8d hx\n", sc, board->step[sc].code, board->step[sc].hpaths);
-		for (int s = 0 ; s < board->step[sc].hpaths ; s++)
+		sc = board->step[step].cut[c];
+        nb_hpaths = board->step[sc].hpaths;
+		//if (debug_state) printf("xcut[%4d/%4s] = %8d hx\n", sc, board->step[sc].code, board->step[sc].hpaths);
+		for (int s = 0 ; s < nb_hpaths ; s++)
 		{
 			wave[board->step[sc].hpath[s]].status = 'X';
 			nb++;
 		}
 	}
-	if (debug_state) printf("step[%4d     ] = %8d hx  %2d cuts\n", step, nb, board->step[step].cuts);
+	//if (debug_state) printf("step[%4d     ] = %8d hx  %2d cuts\n", step, nb, board->step[step].cuts);
 }
 
 //
@@ -435,19 +434,20 @@ int	nb = 0;
 //
 void cut_vlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
 {
-int	nb = 0;
+int	nb = 0, sc = 0, nb_vpaths = 0;
 
 	for (int c = 0 ; c < board->step[step].cuts ; c++)
 	{
-		int sc = board->step[step].cut[c];
-		if (debug_state) printf("xcut[%4d/%4s] = %8d vx\n", sc, board->step[sc].code, board->step[sc].vpaths);
-		for (int s = 0 ; s < board->step[sc].vpaths ; s++)
+		sc = board->step[step].cut[c];
+        nb_vpaths = board->step[sc].vpaths;
+		//if (debug_state) printf("xcut[%4d/%4s] = %8d vx\n", sc, board->step[sc].code, board->step[sc].vpaths);
+		for (int s = 0 ; s < nb_vpaths ; s++)
 		{
 			wave[board->step[sc].vpath[s]].status = 'X';
 			nb++;
 		}
 	}
-	if (debug_state) printf("step[%4d     ] = %8d vx  %2d cuts\n", step, nb, board->step[step].cuts);
+	//if (debug_state) printf("step[%4d     ] = %8d vx  %2d cuts\n", step, nb, board->step[step].cuts);
 }
 
 void my_hlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
@@ -469,7 +469,7 @@ int hlinks = 0, lx = 0, hp = 0;
 		}
 #endif
 	}
-	if (debug_state) printf("step = %3d  hpaths = %8d  lx = %6d\n", step, hlinks, lx);
+	//if (debug_state) printf("step = %3d  hpaths = %8d  lx = %6d\n", step, hlinks, lx);
 }
 
 void my_vlink(BOARD *board, unsigned short step, WAVE *wave, int waves)
@@ -491,7 +491,7 @@ int vlinks = 0, lx = 0, vp = 0;
 		}
 #endif
 	}
-	if (debug_state) printf("step = %3d  vpaths = %8d  lx = %6d\n", step, vlinks, lx);
+	//if (debug_state) printf("step = %3d  vpaths = %8d  lx = %6d\n", step, vlinks, lx);
 }
 
 int state_move(BOARD *board, STATE *state, MOVE *move)
@@ -540,7 +540,7 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 			{
 				state->horizontal.link[state->horizontal.links] = ln;
 				state->horizontal.links++;
-				if (debug_state) printf("debug.move: horizontal link created = %d, sn = %d\n", ln, sn);
+				//if (debug_state) printf("debug.move: horizontal link created = %d, sn = %d\n", ln, sn);
 			}
 		}
 		state->horizontal.pegs++;
@@ -593,7 +593,7 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 			{
 				state->vertical.link[state->vertical.links] = ln;
 				state->vertical.links++;
-				if (debug_state) printf("debug.move: vertical link created = %d, sn = %d\n", ln, sn);
+				//if (debug_state) printf("debug.move: vertical link created = %d, sn = %d\n", ln, sn);
 			}
 		}
 		state->vertical.pegs++;
