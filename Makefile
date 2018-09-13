@@ -1,7 +1,7 @@
 
 
-k2z: k2z.o state.o board.o database.o
-	gcc -lpq -L/usr/lib -o k2z k2z.o state.o board.o database.o -lpq -lm
+k2z: k2z.o state.o board.o database.o book.o
+	gcc -lpq -L/usr/lib -o k2z k2z.o state.o board.o database.o book.o -lpq -lm
 
 k2s: k2s.o database.o
 	gcc -lpq -L/usr/lib -o k2s k2s.o database.o -lpq -lm

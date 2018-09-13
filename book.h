@@ -30,7 +30,7 @@ typedef struct
 int ComputeBookMoves(PGconn *pgConn, BOOK_MOVE *book_moves, int size, int min_count, int depth);
 bool InsertBookMove(PGconn *pgConn, int depth, BOOK_MOVE *bm);
 int DeleteBookMoves(PGconn *pgConn, int depth);
-int ListBookMoves(PGconn *pgConn, char *key, BOOK_MOVE *bm);
+int ListBookMoves(PGconn *pgConn, int size, char *moves, BOOK_MOVE *bm);
 
 
 

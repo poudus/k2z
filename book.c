@@ -32,17 +32,15 @@ char Flip(int size, char c, bool f)
 }
 
 
-char *FlipMoves(int size, char *moves, int depth)
+char *FlipMoves(int size, char *moves, int depth, bool *hf, bool *vf)
 {
-//printf("flip moves = %s\n", moves);
-bool	hf = FlipSize(&moves[0], size);
-bool	vf = FlipSize(&moves[1], size);
-//printf("flip moves = %s  hf = %d  vf = %d\n", moves, hf, vf);
+*hf = FlipSize(&moves[0], size);
+*vf = FlipSize(&moves[1], size);
 
 	for (int d = 1 ; d < depth ; d++)
 	{
-		moves[2*d]= Flip(size, moves[2*d], hf);
-		moves[2*d+1]= Flip(size, moves[2*d+1], vf);
+		moves[2*d]= Flip(size, moves[2*d], *hf);
+		moves[2*d+1]= Flip(size, moves[2*d+1], *vf);
 	}
 	moves[2*depth] = 0;
 	return moves;
@@ -137,9 +135,10 @@ int ComputeBookMoves(PGconn *pgConn, BOOK_MOVE *book_moves, int size, int min_co
 {
 char	flipped_moves[128], buf[256];
 int	nb_book_moves = 0;
-GAME	*games = malloc(sizeof(GAME)*10000);
+bool hf, vf;
+GAME	*games = malloc(sizeof(GAME)*100000);
 int	nb_positions = 0;
-POSITION *positions = malloc(sizeof(POSITION)*1000);
+POSITION *positions = malloc(sizeof(POSITION)*10000);
 
 	//int depth = strlen(key) / 2;
 	int filter = depth + 1;
@@ -151,7 +150,7 @@ POSITION *positions = malloc(sizeof(POSITION)*1000);
 		{
 			strcpy(buf, games[ig].moves);
 			buf[2 * filter] = 0;
-			strcpy(flipped_moves, FlipMoves(size, buf, filter));
+			strcpy(flipped_moves, FlipMoves(size, buf, filter, &hf, &vf));
 			nb_positions = add_position(flipped_moves, trait, games[ig].winner, games[ig].hr, games[ig].vr, nb_positions, positions);
 		}
 
@@ -231,26 +230,39 @@ int DeleteBookMoves(PGconn *pgConn, int depth)
 	return nbc;
 }
 
-int ListBookMoves(PGconn *pgConn, char *key, BOOK_MOVE *bm)
+int ListBookMoves(PGconn *pgConn, int size, char *moves, BOOK_MOVE *bm)
 {
-char query[256];
+char query[256], key[128], buf[32];
+bool hf, vf;
 int nb_moves = 0;
 
+    strcpy(key, moves);
+    FlipMoves(size, key, strlen(key)/2, &hf, &vf);
+    //printf("moves=%s  key=%s  hf=%c  vf=%c\n", moves, key, hf ? 'T' : 'F', vf ? 'T' : 'F');
+            
 	sprintf(query, "select key, move, ratio, count, win, loss from k2s.book where key = '%s' order by ratio desc", key);
 	
 	PGresult *pgres = pgQuery(pgConn, query);
-	if (pgres != NULL && PQntuples(pgres) == 1)
+	if (pgres != NULL)
 	{
 		while (nb_moves < PQntuples(pgres))
 		{
 			strcpy(bm->key, PQgetvalue(pgres, nb_moves, 0));
-			strcpy(bm->move, PQgetvalue(pgres, nb_moves, 1));
+            
+			strcpy(key, PQgetvalue(pgres, nb_moves, 1));
+			strcpy(buf, key);
+            key[0]= Flip(size, key[0], hf);
+            key[1]= Flip(size, key[1], vf);
+			strcpy(bm->move, key);
+            
 			bm->ratio = atof(PQgetvalue(pgres, nb_moves, 2));
 			bm->count = atoi(PQgetvalue(pgres, nb_moves, 3));
 			bm->win = atoi(PQgetvalue(pgres, nb_moves, 4));
 			bm->loss = atoi(PQgetvalue(pgres, nb_moves, 5));
-			bm++;
+            
 			nb_moves++;
+            //printf("%2d  %s->%s  %6.2f\n", nb_moves, buf, key, bm->ratio);
+			bm++;
 		}
 		PQclear(pgres);
 	} else nb_moves = -1;

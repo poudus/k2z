@@ -11,6 +11,7 @@
 #include "board.h"
 #include "state.h"
 #include "database.h"
+#include "book.h"
 
 static bool gtrace_alphabeta = false;
 
@@ -686,7 +687,7 @@ PGconn *pgConn = NULL;
 		printf("k2z> ");
 		while (1)
 		{
-			fgets(command, 256, stdin);
+			char *pcommand = fgets(command, 256, stdin);
 			if (strlen(command) > 0)
 			{
 				sscanf(command, "%s %s", action, parameters);
@@ -1133,6 +1134,19 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 								int idx_move = 0, msid = 63;
 								if (orientation == 'H')
 								{
+                                    int idb_move = -1;
+                                    //==================
+                                    if (move_number == 2 && hpp.max_moves == 21)
+                                    {
+                                        BOOK_MOVE bm[100];
+                                        int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0]);
+                                        if (nb_book_moves > 0 && bm[0].ratio > 0.0)
+                                        {
+                                            idb_move = parse_slot(&board, bm[0].move);
+printf("book[%d]= %3d/%s  = %6.2f %%   %d - %d   %s\n", move_number, idb_move, board.slot[idb_move].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
+                                        }
+                                    }
+                                    //===================
 									if (move_number == 0)
 									{
 										if (strlen(mcts) >= 2)
@@ -1145,6 +1159,10 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 										else
 		msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*offset));
 									}
+									else if (idb_move >= 0)
+                                    {
+                                        msid = idb_move;
+                                    }
 									else
 									{
 										if (strlen(mcts) > 2 * move_number)
@@ -1165,7 +1183,7 @@ printf("=======> New Game %d/%d   HPID = %d  VPID = %d\n", iloop, nb_loops, hpp.
 								}
 								else
 								{
-									if (move_number == 1 && alpha_ratio >= 0.2 && alpha_ratio <= 0.6)
+									if (move_number == 1 && alpha_ratio >= 0.2 && alpha_ratio <= 0.8)
 									{
 										int tslots[256];
 			int nb_tslots = triangle_opposition_board(&board, board.slot[msid].x, board.slot[msid].y, 'H', alpha_ratio, &tslots[0]);
