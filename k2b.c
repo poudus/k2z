@@ -45,7 +45,7 @@ BOOK_MOVE bmoves[1000];
 		int nb_book_moves = ComputeBookMoves(pgConn, &bmoves[0], size, min_count, depth);
 
 		if (bInsert)
-			printf("\n%d entries deleted, depth = %d\n", DeleteBookMoves(pgConn, depth), depth);
+			printf("\n%d deleted, depth = %d\n", DeleteBookMoves(pgConn, depth), depth);
 		else
 			printf("++\n");
 		for (int bm = 0 ; bm < nb_book_moves ; bm++)
@@ -60,7 +60,7 @@ BOOK_MOVE bmoves[1000];
 			}
 		}
 		if (bInsert)
-			printf("\n%d/%d inserted, depth = %d\n", nbi, nb_book_moves, depth);
+			printf("%d/%d inserted\n\n", nbi, nb_book_moves);
 		else
 			printf("--\n%d book moves  (%d entries)\n\n", nbd, nb_book_moves);
 	}
