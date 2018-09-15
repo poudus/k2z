@@ -134,8 +134,8 @@ int cmppos(const void *p1, const void *p2)
 int ComputeBookMoves(PGconn *pgConn, BOOK_MOVE *book_moves, int size, int min_count, int depth)
 {
 char	flipped_moves[128], buf[256];
-int	nb_book_moves = 0;
-bool hf, vf;
+int	nb_book_moves = 0, nb_duplicate = 0;
+bool	hf, vf, duplicate = false;
 GAME	*games = malloc(sizeof(GAME)*100000);
 int	nb_positions = 0;
 POSITION *positions = malloc(sizeof(POSITION)*10000);
@@ -148,14 +148,22 @@ POSITION *positions = malloc(sizeof(POSITION)*10000);
 	{
 		if (strlen(games[ig].moves) >= 2 * depth)
 		{
-			strcpy(buf, games[ig].moves);
-			buf[2 * filter] = 0;
-			strcpy(flipped_moves, FlipMoves(size, buf, filter, &hf, &vf));
-			nb_positions = add_position(flipped_moves, trait, games[ig].winner, games[ig].hr, games[ig].vr, nb_positions, positions);
+			duplicate = false;
+			for (int ig2 = 0 ; ig2 < ig && !duplicate ; ig2++)
+				duplicate = strcmp(games[ig].moves, games[ig2].moves) == 0;
+			if (duplicate)
+				nb_duplicate++;
+			else
+			{
+				strcpy(buf, games[ig].moves);
+				buf[2 * filter] = 0;
+				strcpy(flipped_moves, FlipMoves(size, buf, filter, &hf, &vf));
+				nb_positions = add_position(flipped_moves, trait, games[ig].winner, games[ig].hr, games[ig].vr, nb_positions, positions);
+			}
 		}
 
 	}
-	//printf("\nfilter = %d : %d positions, key = %s  depth = %d\n", filter, nb_positions, key, depth);
+	printf("\n%d games, %d duplicates\n", nb_games, nb_duplicate);
 	for (int ip = 0 ; ip < nb_positions ; ip++)
 	{
 		if (positions[ip].count >= min_count)
