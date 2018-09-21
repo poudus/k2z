@@ -1140,10 +1140,11 @@ printf("================== %d / %d       [ %d / %6.2f   vs   %d / %6.2f ]\n", il
                                     {
                                         BOOK_MOVE bm[100];
                                         int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0]);
-                                        if (nb_book_moves > 0 && bm[0].ratio > 0.0)
+                                        if (nb_book_moves > 0)
                                         {
-                                            idb_move = parse_slot(&board, bm[0].move);
 printf("book[%d]= %3d/%s  = %6.2f %%   %d - %d   %s\n", move_number, idb_move, board.slot[idb_move].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
+                                            if (bm[0].ratio > 0.0)
+                                                idb_move = parse_slot(&board, bm[0].move);
                                         }
                                     }
                                     //===================
@@ -1189,10 +1190,11 @@ printf("book[%d]= %3d/%s  = %6.2f %%   %d - %d   %s\n", move_number, idb_move, b
                                     {
                                         BOOK_MOVE bm[100];
                                         int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0]);
-                                        if (nb_book_moves > 0 && bm[0].ratio > 0.0)
+                                        if (nb_book_moves > 0)
                                         {
-                                            idb_move = parse_slot(&board, bm[0].move);
 printf("book[%d]= %3d/%s  = %6.2f %%   %d - %d   %s\n", move_number, idb_move, board.slot[idb_move].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
+                                            if (bm[0].ratio > 0.0)
+                                                idb_move = parse_slot(&board, bm[0].move);
                                         }
                                     }
                                     //===================

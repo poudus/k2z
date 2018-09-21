@@ -4,26 +4,26 @@
 
 typedef struct
 {
-	int	id;
-	char	moves[128];
-	double	hr, vr;
-	char	winner;
+	int    id;
+	char   moves[128];
+	double hr, vr;
+	char   winner;
 } GAME;
 
 typedef struct
 {
-	char	key[32];
-	int	count, win, loss;
-	double	hr, vr, trait_ratio, move_ratio, dratio, elodiff, dexpr;
+	char   key[32];
+	int    count, win, loss, rcount;
+	double hr, vr, trait_ratio, move_ratio, dratio, elodiff, dexpr;
 } POSITION;
 
 
 typedef struct
 {
-	char	key[12];
-	char	move[4];
-	int	count, win, loss;
-	double	ratio;
+	char   key[16];
+	char   move[4];
+	int    count, win, loss;
+	double ratio;
 } BOOK_MOVE;
 
 

@@ -79,7 +79,7 @@ strcpy(query, "select g.id, g.winner, g.moves, ph.rating as hr, pv.rating as vr 
 	} else return -1;
 }
 
-int add_position(char *key, char trait, char winner, double hr, double vr, int nb_positions, POSITION *positions)
+int add_position(char *key, char trait, char winner, double hr, double vr, int nb_positions, POSITION *positions, bool duplicate)
 {
 bool bfound = false;
 int ip = 0, ifound = -1;
@@ -111,14 +111,18 @@ int ip = 0, ifound = -1;
 	}
 	if (ifound >= 0 && ifound < nb_positions)
 	{
-		positions[ifound].count++;
+		positions[ifound].rcount++;
 		positions[ifound].hr += hr;
 		positions[ifound].vr += vr;
 
-		if (trait == winner)
-			positions[ifound].win++;
-		else
-			positions[ifound].loss++;
+        if (!duplicate)
+        {
+            positions[ifound].count++;
+            if (trait == winner)
+                positions[ifound].win++;
+            else
+                positions[ifound].loss++;
+        }
 	}
 	return nb_positions;
 }
@@ -138,7 +142,7 @@ int	nb_book_moves = 0, nb_duplicate = 0;
 bool	hf, vf, duplicate = false;
 GAME	*games = malloc(sizeof(GAME)*100000);
 int	nb_positions = 0;
-POSITION *positions = malloc(sizeof(POSITION)*10000);
+POSITION *positions = malloc(sizeof(POSITION)*100000);
 
 	//int depth = strlen(key) / 2;
 	int filter = depth + 1;
@@ -153,23 +157,21 @@ POSITION *positions = malloc(sizeof(POSITION)*10000);
 				duplicate = strcmp(games[ig].moves, games[ig2].moves) == 0;
 			if (duplicate)
 				nb_duplicate++;
-			else
-			{
-				strcpy(buf, games[ig].moves);
-				buf[2 * filter] = 0;
-				strcpy(flipped_moves, FlipMoves(size, buf, filter, &hf, &vf));
-				nb_positions = add_position(flipped_moves, trait, games[ig].winner, games[ig].hr, games[ig].vr, nb_positions, positions);
-			}
+            
+            strcpy(buf, games[ig].moves);
+            buf[2 * filter] = 0;
+            strcpy(flipped_moves, FlipMoves(size, buf, filter, &hf, &vf));
+            nb_positions = add_position(flipped_moves, trait, games[ig].winner, games[ig].hr, games[ig].vr, nb_positions, positions, duplicate);
 		}
 
 	}
-	printf("\n%d games, %d duplicates\n", nb_games, nb_duplicate);
+	printf("\n%d games, %d duplicates, %d positions\n", nb_games, nb_duplicate, nb_positions);
 	for (int ip = 0 ; ip < nb_positions ; ip++)
 	{
 		if (positions[ip].count >= min_count)
 		{
-			positions[ip].hr /= positions[ip].count;
-			positions[ip].vr /= positions[ip].count;
+			positions[ip].hr /= positions[ip].rcount;
+			positions[ip].vr /= positions[ip].rcount;
 			positions[ip].trait_ratio = 100.0 * positions[ip].win / positions[ip].count;
 			positions[ip].move_ratio = 100.0 * positions[ip].loss / positions[ip].count;
 
@@ -198,7 +200,7 @@ POSITION *positions = malloc(sizeof(POSITION)*10000);
 			positions[ip].vr = -1.0;
 		}
 	}
-
+    
 	qsort(&positions[0], nb_positions, sizeof(POSITION), cmppos);
 
 	for (int ip = 0 ; ip < nb_positions ; ip++)
