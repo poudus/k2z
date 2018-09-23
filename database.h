@@ -30,7 +30,7 @@ char *formatTS(long long ts, char *buffer);
 
 double EloExpectedResult(double r1, double r2);
 double EloDifference(double p);
-bool UpdateRatings(PGconn *pgConn, int hp, int vp, char winner);
+bool UpdateRatings(PGconn *pgConn, int hp, int vp, char winner, double coef);
 
 int insertGame(PGconn *pgConn, int hp, int vp, char *moves, char winner, char reason, int duration, int ht, int vt);
 bool LoadGame(PGconn *pgConn, int game, char *moves);

@@ -485,7 +485,7 @@ double EloDifference(double p)
 	return -400.0 * log10 (1.0/p - 1.0);
 }
 
-bool UpdateRatings(PGconn *pgConn, int hp, int vp, char winner)
+bool UpdateRatings(PGconn *pgConn, int hp, int vp, char winner, double coef)
 {
 PLAYER_PARAMETERS hpp, vpp;
 
@@ -495,25 +495,25 @@ PLAYER_PARAMETERS hpp, vpp;
 	if (winner == 'H')
 	{
 		double expr = EloExpectedResult(hpp.rating, vpp.rating);
-		double gl = 10.0 * (1.0 - expr);
-		printf("winner    = %2d/%7.2f    %5.2f      x = %.2f\n", hp, hpp.rating, gl, expr);
-		printf("loser     = %2d/%7.2f    %5.2f      x = %.2f\n", vp, vpp.rating, -gl, 1.0-expr);
+		double gl = coef * (1.0 - expr);
+		printf("winner    = %2d/%7.2f     %5.2f       x = %.2f\n", hp, hpp.rating, gl, expr);
+		printf("loser     = %2d/%7.2f     %5.2f       x = %.2f\n", vp, vpp.rating, -gl, 1.0-expr);
 		UpdatePlayerWin(pgConn, hpp.pid, gl);
 		UpdatePlayerLoss(pgConn, vpp.pid, gl);
 	}
 	else if (winner == 'V')
 	{
 		double expr = EloExpectedResult(vpp.rating, hpp.rating);
-		double gl = 10.0 * (1.0 - expr);
-		printf("winner    = %2d/%7.2f    %5.2f      x = %.2f\n", vp, vpp.rating, gl, expr);
-		printf("loser     = %2d/%7.2f    %5.2f      x = %.2f\n", hp, hpp.rating, -gl, 1.0-expr);
+		double gl = coef * (1.0 - expr);
+		printf("winner    = %2d/%7.2f     %5.2f       x = %.2f\n", vp, vpp.rating, gl, expr);
+		printf("loser     = %2d/%7.2f     %5.2f       x = %.2f\n", hp, hpp.rating, -gl, 1.0-expr);
 		UpdatePlayerWin(pgConn, vpp.pid, gl);
 		UpdatePlayerLoss(pgConn, hpp.pid, gl);
 	}
 	else
 	{
 		double expr = EloExpectedResult(hpp.rating, vpp.rating);
-		double hgl = 10.0 * (0.5 - expr);
+		double hgl = coef * (0.5 - expr);
 		printf("%d/%6.2f  DRAW vs  %d/%6.2f    hgl = %4.2f    hexpr =  %.2f\n", hp, hpp.rating, vp, vpp.rating, hgl, expr);
 		UpdatePlayerDraw(pgConn, hpp.pid, hgl);
 		UpdatePlayerDraw(pgConn, vpp.pid, -hgl);

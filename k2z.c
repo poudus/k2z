@@ -397,11 +397,12 @@ void GameLive(PGconn *pgConn, BOARD *board, int channel, char orientation, int p
 {
 bool end_of_game = false;
 char last_move[8], zmove[8], moves[128], winner = ' ', reason = ' ', opp_orientation = 'H', buffer[256];
-int  tick = 0, slot = 0, move_number = 0, depth = 2, max_moves = 20, msid = 0, total_think_duration = 0, total_wait_duration = 0;
+int  tick = 0, slot = 0, move_number = 0, depth = 2, max_moves = 20, msid = 0, total_think_duration = 0, total_wait_duration = 0, idb_move = -1;
 STATE my_state, new_state;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, lambda_decay = 0.8, opponent_decay = 0.8, alpha_beta_eval = 0.0;
 PLAYER_PARAMETERS pp;
 struct timeval t_begin, t_end;
+BOOK_MOVE bm[100];
 
 	gettimeofday(&t_begin, NULL);
 	init_state(&my_state, board->horizontal.paths, board->vertical.paths, true);
@@ -445,23 +446,40 @@ struct timeval t_begin, t_end;
 					ResignLive(pgConn, channel, winner, reason);
 				} else clone_state(&new_state, &my_state, false);
 			}
-			//-----------, alpha_beta_eval = 0.0
+			//---------------
 			if (!end_of_game)
 			{
+				idb_move = -1;
 				alpha_beta_eval = 0.0;
 				if (orientation == 'H' && move_number == 0)
 					msid = find_xy(board, offset+rand()%(board->width-2*offset), offset+rand()%(board->height-2*offset));
 				else
 				{
-					printf("%c.think()\n", orientation);
-					struct timeval t0, t_end;
+                                    if (move_number >= 1 && move_number <= 4 && max_moves % 10 == 1)
+                                    {
+                                        int nb_book_moves = ListBookMoves(pgConn, board->width, moves, &bm[0]);
+                                        if (nb_book_moves > 0)
+                                        {
+						int book_slot = parse_slot(board, bm[0].move);
+	                                	if (bm[0].ratio > 0.0)
+	                   				idb_move = book_slot;
+printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board->slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
+                                        }
+                                    }
+					if (idb_move >= 0)
+						msid = idb_move;
+					else
+					{
+						printf("%c.think()\n", orientation);
+						struct timeval t0, t_end;
 
-					gettimeofday(&t0, NULL);
-					msid = think_alpha_beta(board, &my_state, orientation, depth, max_moves,
-						lambda_decay, opponent_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
+						gettimeofday(&t0, NULL);
+						msid = think_alpha_beta(board, &my_state, orientation, depth, max_moves,
+							lambda_decay, opponent_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
 
-					gettimeofday(&t_end, NULL);
-					total_think_duration += (int)(duration(&t0, &t_end));
+						gettimeofday(&t_end, NULL);
+						total_think_duration += (int)(duration(&t0, &t_end));
+					}
 				}
 
 				move(board, &my_state, &new_state, msid, orientation);
@@ -533,7 +551,7 @@ struct timeval t_begin, t_end;
 		printf("live #%d:  winner %c   reason = %c    %2d moves  duration =  %-4d sec     game = %d  (%d vs %d)\n",
 			channel, winner, reason, move_number, (int)duration(&t_begin, &t_end)/1000, game_id, pid, opid);
 
-		UpdateRatings(pgConn, pid, opid, winner);
+		UpdateRatings(pgConn, pid, opid, winner, 10.0);
 	}
 	else
 		printf("live #%d:  winner %c   reason = %c    %2d moves  duration =  %-4d sec\n",
@@ -575,7 +593,7 @@ int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offse
 int hp_min = 1, hp_max = 16;
 int vp_min = 1, vp_max = 16;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0;
-double lambda_decay = 0.8, opponent_decay = 0.8, alpha_ratio = 0.4, random_decay = 0.1;
+double lambda_decay = 0.8, opponent_decay = 0.8, alpha_ratio = 0.4, random_decay = 0.1, elo_coef = 10.0;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
 BOARD board;
 TRACK zemoves[512];
@@ -656,6 +674,7 @@ PGconn *pgConn = NULL;
 					else if (strcmp(paramline, "wait-live") == 0) wait_live = ivalue;
 					else if (strcmp(paramline, "alpha-ratio") == 0) alpha_ratio = dvalue;
 					else if (strcmp(paramline, "random-decay") == 0) random_decay = dvalue;
+					else if (strcmp(paramline, "elo-coef") == 0) elo_coef = dvalue;
 					nb_params++;
 				}
 			}
@@ -1017,6 +1036,7 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 							gettimeofday(&t_end, NULL);
 							printf("session live channel id = %d, hp = %3d        duration =  %-3d min     count = %d\n",
 								channel, player_id, (int)duration(&t_begin, &t_end)/60000, live_loop);
+							srand(t_end.tv_sec);
 						}
 						else if (orient == 'V') // join
 						{
@@ -1035,6 +1055,7 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 							gettimeofday(&t_end, NULL);
 							printf("session live channel id = %d, vp = %3d        duration =  %-3d min     count = %d\n",
 								channel, player_id, (int)duration(&t_begin, &t_end)/60000, live_loop);
+							srand(t_end.tv_sec);
 						}
 						else if (orient == 'D') // delete
 						{
@@ -1079,7 +1100,7 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 						winner = ' '; reason = '?';
 						end_of_game = false;
 						gettimeofday(&t0_game, NULL);
-printf("================== %d / %d       [ %d / %6.2f   vs   %d / %6.2f ]\n", iloop, nb_loops, hpp.pid, hpp.rating, vpp.pid, vpp.rating);
+printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d / %6.2f   ]\n", iloop, nb_loops, hpp.pid, hpp.rating, vpp.pid, vpp.rating);
 						while (!end_of_game)
 						{
 							gettimeofday(&t_begin, NULL);
@@ -1142,9 +1163,10 @@ printf("================== %d / %d       [ %d / %6.2f   vs   %d / %6.2f ]\n", il
                                         int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0]);
                                         if (nb_book_moves > 0)
                                         {
-printf("book[%d]= %3d/%s  = %6.2f %%   %d - %d   %s\n", move_number, idb_move, board.slot[idb_move].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
-                                            if (bm[0].ratio > 0.0)
-                                                idb_move = parse_slot(&board, bm[0].move);
+						int book_slot = parse_slot(&board, bm[0].move);
+	                                	if (bm[0].ratio > 0.0)
+	                   				idb_move = book_slot;
+printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board.slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
                                         }
                                     }
                                     //===================
@@ -1192,9 +1214,10 @@ printf("book[%d]= %3d/%s  = %6.2f %%   %d - %d   %s\n", move_number, idb_move, b
                                         int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0]);
                                         if (nb_book_moves > 0)
                                         {
-printf("book[%d]= %3d/%s  = %6.2f %%   %d - %d   %s\n", move_number, idb_move, board.slot[idb_move].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
+						int book_slot = parse_slot(&board, bm[0].move);
                                             if (bm[0].ratio > 0.0)
-                                                idb_move = parse_slot(&board, bm[0].move);
+                                                idb_move = book_slot;
+printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board.slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
                                         }
                                     }
                                     //===================
@@ -1243,11 +1266,11 @@ printf("book[%d]= %3d/%s  = %6.2f %%   %d - %d   %s\n", move_number, idb_move, b
 						// EOG
 						// ---
 						gettimeofday(&tend_game, NULL);
-						printf("===========  %d/%d  ===========   winner %c   reason %c   %d # %s\n",
+						printf("===========  %4d / %-4d  + winner %c   reason %c   %d # %s\n",
 							iloop, nb_loops, winner, reason, move_number, current_game_moves);
 						printf("duration  = %6d sec\n", (int)duration(&t0_game, &tend_game)/1000);
 
-						UpdateRatings(pgConn, hpp.pid, vpp.pid, winner);
+						UpdateRatings(pgConn, hpp.pid, vpp.pid, winner, elo_coef);
 
 						int mh = msh/((move_number+1)/2);
 						int mv = msv/(move_number/2);
@@ -1299,6 +1322,7 @@ printf("book[%d]= %3d/%s  = %6.2f %%   %d - %d   %s\n", move_number, idb_move, b
 							else if (strcmp(parameters, "wait-live") == 0) wait_live = ivalue;
 							else if (strcmp(parameters, "alpha-ratio") == 0) alpha_ratio = dvalue;
 							else if (strcmp(parameters, "random-decay") == 0) random_decay = dvalue;
+							else if (strcmp(parameters, "elo-coef") == 0) elo_coef = dvalue;
 							else bp = false;
 							if (bp) printf("parameter %s set to %6.3f\n", parameters, dvalue);
 						}
@@ -1325,6 +1349,7 @@ printf("book[%d]= %3d/%s  = %6.2f %%   %d - %d   %s\n", move_number, idb_move, b
 					printf("mcts           = %s\n", mcts);
 					printf("alpha-ratio    = %5.2f\n", alpha_ratio);
 					printf("random-decay   = %5.2f\n", random_decay);
+					printf("elo-coef       = %5.2f\n", elo_coef);
 				}
 				else if (strcmp("position", action) == 0) // 
 				{

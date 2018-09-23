@@ -18,8 +18,8 @@
 	grid-column-end: 2;
 	grid-row-start: 1;
 	font-size: 36px;
-	background: #99BBDD;
-	color: #222222;
+	background: #333333;
+	color: #00FF00;
 	text-align: center;
 	padding: 30px 0;
 }
@@ -30,7 +30,7 @@
 	grid-column-end: 2;
 	grid-row-start: 3;
 	font-size: 36px;
-	background: #DD99AA;
+	background: #BBBBBB;
 	text-align: center;
 	padding: 30px 0;
 }
@@ -47,7 +47,14 @@
 
 <script type="text/javascript" language="javascript">
 
+var x0 = 30;
+var y0 = 30;
+var xstep = 71;
+var ystep = 71;
+
 function drawBoard(ctx) {
+
+ctx.clearRect(0, 0, 840, 840);
 
 xleft = 60;
 xright = 780;
@@ -81,8 +88,8 @@ ctx.closePath();
 
 ctx.strokeStyle = 'grey';
 
-for (x = 30 ; x < 850 ; x+=71) {
-for (y = 30 ; y < 850 ; y+=71) {
+for (x = x0 ; x < 850 ; x += xstep) {
+for (y = y0 ; y < 850 ; y += ystep) {
 ctx.beginPath();
 ctx.arc(x, y, 8, 0, 6.28);
 ctx.stroke();
@@ -91,14 +98,109 @@ ctx.closePath();
 }
 }
 
+function drawPointXY(ctx, x, y, color) {
+ctx.beginPath();
+ctx.strokeStyle = color;
+ctx.lineWidth = 3;
+ctx.arc(30 + x * 71, 30 + y * 71, 8, 0, 6.28);
+ctx.stroke();
+ctx.closePath();
+}
+function drawSmallPointXY(ctx, x, y, color) {
+ctx.beginPath();
+ctx.strokeStyle = color;
+ctx.lineWidth = 4;
+ctx.arc(30 + x * 71, 30 + y * 71, 4, 0, 6.28);
+ctx.stroke();
+ctx.closePath();
+}
+function drawLineXY(ctx, x1, y1, x2, y2, color) {
+
+ctx.strokeStyle = color;
+ctx.lineWidth = 5;
+
+ctx.beginPath();
+ctx.moveTo(30 + x1 * 71, 30 + y1 * 71);
+ctx.lineTo(30 + x2 * 71, 30 + y2 * 71);
+
+ctx.stroke();
+ctx.closePath();
+}
+
+function drawPointCode(ctx, code, color) {
+var x = code.charCodeAt(0) - "A".charCodeAt(0);
+var y = code.charCodeAt(1) - "A".charCodeAt(0);
+drawPointXY(ctx, x, y, color);
+}
+function drawSmallPointCode(ctx, code, color) {
+var x = code.charCodeAt(0) - "A".charCodeAt(0);
+var y = code.charCodeAt(1) - "A".charCodeAt(0);
+drawSmallPointXY(ctx, x, y, color);
+}
+function drawLineCode(ctx, code, color) {
+var x1 = code.charCodeAt(0) - "A".charCodeAt(0);
+var y1 = code.charCodeAt(1) - "A".charCodeAt(0);
+var x2 = code.charCodeAt(2) - "A".charCodeAt(0);
+var y2 = code.charCodeAt(3) - "A".charCodeAt(0);
+drawLineXY(ctx, x1, y1, x2, y2, color);
+}
+
+function drawSignatureColor(ctx, signature, color) {
+
+	var ps = signature.split("-");
+	var points = ps[0];
+	for (var i = 0 ; i < points.length ; i += 2) {
+		drawPointCode(ctx, points.substring(i, i+2), color);
+	}
+	var lines = ps[1];
+	for (var i = 0 ; i < lines.length ; i += 4) {
+		drawLineCode(ctx, lines.substring(i, i+4), color);
+	}
+}
+
+function drawSignature(ctx, signature, last_move) {
+
+	var p = signature.split("+");
+	drawSignatureColor(ctx, p[0], 'blue');
+	drawSignatureColor(ctx, p[1], 'orange');
+	drawSmallPointCode(ctx, last_move, 'yellow');
+}
+
+var myVar = window.setInterval(liveTimer, 1000);
+
+function liveTimer() {
+
+var bottom_ctrl = document.getElementById("bottom");
+var board_ctrl = document.getElementById("k2b");
+var header_ctrl = document.getElementById("header");
+var url = "http://192.168.0.48/k2z/api/live.php?database=12x12&channel=1";
+//var params = "database=12x12";
+
+	//bottom_ctrl.innerHTML = "liveTimer";
+
+var request = new XMLHttpRequest();
+	//request.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+	request.onreadystatechange = function() {
+		if (request.readyState === XMLHttpRequest.DONE && request.status === 200)
+		{
+			var response = JSON.parse(request.response);
+			//var rep = request.response.split(",");
+			bottom_ctrl.innerHTML = response[3] + ": " + response[2];
+			header_ctrl.innerHTML = "K2Z LIVE CHANNEL #" + response[0];
+			drawBoard(board_ctrl.getContext("2d"));
+			drawSignature(board_ctrl.getContext("2d"), response[1], response[2]);
+		}
+	}
+	request.open('GET', url, false);
+	request.send(null);
+}
+
 window.onload = function() {
 
 var c = document.getElementById("k2b");
 var ctx = c.getContext("2d");
 
 drawBoard(ctx);
-
-var b = document.getElementById("bottom");
 
 }
 
@@ -111,7 +213,7 @@ var b = document.getElementById("bottom");
 	<div class="main">
 
 	<div class="header" id="header">
-		HEADER
+		K2Z LIVE CHANNEL
 	</div>
 
 	<div class="board">
@@ -119,7 +221,7 @@ var b = document.getElementById("bottom");
 	</div>
 
 	<div class="bottom" id="bottom">
-		BOTTOM
+		PLAYERS
 	</div>
 
 	</div>
