@@ -1157,7 +1157,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 								{
                                     int idb_move = -1;
                                     //==================
-                                    if ((move_number == 2 || move_number == 4) && hpp.max_moves % 10 == 1)
+                                    if ((move_number == 2 || move_number == 4 || move_number == 6) && hpp.max_moves % 10 == 1)
                                     {
                                         BOOK_MOVE bm[100];
                                         int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0]);
@@ -1208,7 +1208,7 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 								{
                                     int idb_move = -1;
                                     //==================
-                                    if ((move_number == 1 || move_number == 3) && vpp.max_moves % 10 == 1)
+                                    if ((move_number == 1 || move_number == 3 || move_number == 5) && vpp.max_moves % 10 == 1)
                                     {
                                         BOOK_MOVE bm[100];
                                         int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0]);

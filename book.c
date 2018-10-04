@@ -165,7 +165,7 @@ POSITION *positions = malloc(sizeof(POSITION)*100000);
 		}
 
 	}
-	printf("\n%d games, %d duplicates, %d positions\n", nb_games, nb_duplicate, nb_positions);
+	printf("\n%d games, %d duplicates, %d positions, depth = %d\n", nb_games, nb_duplicate, nb_positions, depth);
 	for (int ip = 0 ; ip < nb_positions ; ip++)
 	{
 		if (positions[ip].count >= min_count)
