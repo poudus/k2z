@@ -20,7 +20,7 @@ typedef struct
 
 typedef struct
 {
-	char   key[16];
+	char   key[32];
 	char   move[4];
 	int    count, win, loss;
 	double ratio;

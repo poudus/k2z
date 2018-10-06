@@ -30,17 +30,25 @@ int move(BOARD *board, STATE *state_from, STATE *state_to, unsigned short slot, 
 {
 struct timeval t0, t_end;
 
-	gettimeofday(&t0, NULL);
-	//free_state(state_to);
-	clone_state(state_from, state_to, false);
-	//printf("init.clone  %6.2f ms\n", duration(&t_init_s0, &t_clone));
+	if (find_move(state_from, slot))
+	{
+		printf("!!! illegal move %3d/%2s\n", slot, board->slot[slot].code);
+		exit(-1);
+	}
+	else
+	{
+		gettimeofday(&t0, NULL);
+		//free_state(state_to);
+		clone_state(state_from, state_to, false);
+		//printf("init.clone  %6.2f ms\n", duration(&t_init_s0, &t_clone));
 
-	MOVE move;
-	move.slot = slot;
-	move.orientation = orientation;
-	move.steps = 0;
-	int complexity = state_move(board, state_to, &move);
-	gettimeofday(&t_end, NULL);
+		MOVE move;
+		move.slot = slot;
+		move.orientation = orientation;
+		move.steps = 0;
+		int complexity = state_move(board, state_to, &move);
+		gettimeofday(&t_end, NULL);
+	}
 
 	/*
 		printf("move %c %s  %6.2f ms  complexity = %9d   (%d+%d %6.2f%%, %d+%d %6.2f%%)\n", orientation, board->slot[slot].code,
@@ -87,7 +95,7 @@ FIELD *player = NULL, *opponent = NULL;
 // ==================
 // think()
 // ==================
-int think(BOARD *board, STATE *current_state, char orientation, int depth, int max_moves,
+int think_deprecated(BOARD *board, STATE *current_state, char orientation, int depth, int max_moves,
 			double lambda_decay, double opponent_decay, double wpegs, double wlinks, double wzeta)
 {
 int	sid = -1;
@@ -362,7 +370,7 @@ int distance = 0, direction = 0, slots = 0;
 			for (int yy = 3 ; yy <= 9 ; yy++)
 			{
 				double a = direction * (double)(y - yy) / (double)(xx - x);
-				if (a >= alpha_down && a <= alpha_up)
+				if (a > alpha_down && a < alpha_up && xx != x && yy != y)
 				{
 					*px = xx;
 					*py = yy;
@@ -455,15 +463,23 @@ BOOK_MOVE bm[100];
 					msid = find_xy(board, offset+rand()%(board->width-2*offset), offset+rand()%(board->height-2*offset));
 				else
 				{
-                                    if (move_number >= 1 && move_number <= 4 && max_moves % 10 == 1)
+                                    if (move_number >= 1 && move_number <= 6 && max_moves % 10 == 1)
                                     {
                                         int nb_book_moves = ListBookMoves(pgConn, board->width, moves, &bm[0]);
                                         if (nb_book_moves > 0)
                                         {
 						int book_slot = parse_slot(board, bm[0].move);
-	                                	if (bm[0].ratio > 0.0)
-	                   				idb_move = book_slot;
+						if (find_move(&my_state, book_slot))
+						{
+printf("!!! book_move %3d/%2s  found in #%s\n", book_slot, bm[0].move, moves);
+exit(-1);
+						}
+						else
+						{
+	                                		if (bm[0].ratio > 0.0)
+	                   					idb_move = book_slot;
 printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board->slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
+						}
                                         }
                                     }
 					if (idb_move >= 0)
@@ -1073,7 +1089,7 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 				}
 				else if (strcmp("session", action) == 0)
 				{
-					int nb_loops = 100, msh = 0, msv = 0;
+					int nb_loops = 100, msh = 0, msv = 0, msid = 63;
 					if (strlen(parameters) > 0)
 						nb_loops = atoi(parameters);
 					bool end_of_game = false;
@@ -1152,7 +1168,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 							}
 							if (!end_of_game)
 							{
-								int idx_move = 0, msid = 63;
+								int idx_move = 0;
 								if (orientation == 'H')
 								{
                                     int idb_move = -1;
@@ -1164,38 +1180,46 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
                                         if (nb_book_moves > 0)
                                         {
 						int book_slot = parse_slot(&board, bm[0].move);
-	                                	if (bm[0].ratio > 0.0)
-	                   				idb_move = book_slot;
+						if (find_move(current_state, book_slot))
+						{
+printf("!!! book_move %3d/%2s  found in #%s\n", book_slot, bm[0].move, current_game_moves);
+exit(-1);
+						}
+						else
+						{
+	                                		if (bm[0].ratio > 0.0)
+	                   					idb_move = book_slot;
 printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board.slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
+						}
                                         }
                                     }
                                     //===================
-									if (move_number == 0)
-									{
-										if (strlen(mcts) >= 2)
-										{
-										strcpy(buffer, mcts);
-										buffer[2] = 0;
-										msid = parse_slot(&board, buffer);
-										printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
-										}
-										else
-		msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*offset));
-									}
-									else
-									{
-										if (strlen(mcts) > 2 * move_number)
-										{
-										strcpy(buffer, &mcts[2 * move_number]);
-										buffer[2] = 0;
-										msid = parse_slot(&board, buffer);
-										printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
-										}
-									else if (idb_move >= 0)
+					if (move_number == 0)
+					{
+						if (strlen(mcts) >= 2)
+						{
+						strcpy(buffer, mcts);
+						buffer[2] = 0;
+						msid = parse_slot(&board, buffer);
+						printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
+						}
+						else
+msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*offset));
+					}
+					else
+					{
+						if (strlen(mcts) > 2 * move_number)
+						{
+						strcpy(buffer, &mcts[2 * move_number]);
+						buffer[2] = 0;
+						msid = parse_slot(&board, buffer);
+						printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
+						}
+					else if (idb_move >= 0)
                                     {
                                         msid = idb_move;
                                     }
-										else
+					else
 		msid = think_alpha_beta(&board, current_state, orientation, hpp.depth, hpp.max_moves,
 				RD3(hpp.lambda_decay, random_decay), RD3(hpp.opp_decay, random_decay),
 				wpegs, wlinks, wzeta, &alpha_beta_eval);
@@ -1215,29 +1239,40 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
                                         if (nb_book_moves > 0)
                                         {
 						int book_slot = parse_slot(&board, bm[0].move);
-                                            if (bm[0].ratio > 0.0)
-                                                idb_move = book_slot;
+						if (find_move(current_state, book_slot))
+						{
+printf("!!! book_move %3d/%2s  found in #%s\n", book_slot, bm[0].move, current_game_moves);
+exit(-1);
+						}
+						else
+						{
+                                            		if (bm[0].ratio > 0.0)
+                                                		idb_move = book_slot;
 printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board.slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
+						}
                                         }
                                     }
                                     //===================
-									if (move_number == 1 && alpha_ratio >= 0.2 && alpha_ratio <= 0.8)
-									{
-										int tslots[256];
-			int nb_tslots = triangle_opposition_board(&board, board.slot[msid].x, board.slot[msid].y, 'H', alpha_ratio, &tslots[0]);
-										msid = tslots[rand() % nb_tslots];
-										printf("tos/%02d = %3d/%s\n", nb_tslots, msid, board.slot[msid].code);
-									}
-									else
-									{
-										if (strlen(mcts) > 2 * move_number)
-										{
-										strcpy(buffer, &mcts[2 * move_number]);
-										buffer[2] = 0;
-										msid = parse_slot(&board, buffer);
-										printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
-										}
-									else if (idb_move >= 0)
+					if (move_number == 1 && alpha_ratio >= 0.2 && alpha_ratio <= 0.8)
+					{
+						int tslots[256];
+						int first_sid = msid;
+						int x0 = board.slot[msid].x;
+						int y0 = board.slot[msid].y;
+						int nb_tslots = triangle_opposition_board(&board, x0, y0, 'H', alpha_ratio, &tslots[0]);
+						msid = tslots[rand() % nb_tslots];
+						printf("tos/%02d = %3d/%s    id = %3d   x0 = %d  y0 = %d\n", nb_tslots, msid, board.slot[msid].code, first_sid, x0, y0);
+					}
+					else
+					{
+						if (strlen(mcts) > 2 * move_number)
+						{
+						strcpy(buffer, &mcts[2 * move_number]);
+						buffer[2] = 0;
+						msid = parse_slot(&board, buffer);
+						printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
+						}
+					else if (idb_move >= 0)
                                     {
                                         msid = idb_move;
                                     }

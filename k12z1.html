@@ -166,6 +166,18 @@ function drawSignature(ctx, signature, last_move) {
 	drawSmallPointCode(ctx, last_move, 'yellow');
 }
 
+//function onClickBoard(e) {
+//var header_ctrl = document.getElementById("header");
+//header_ctrl.innerHTML = "event " + e.clientX " - " + e.clientY;
+//}
+
+var header_ctrl = document.getElementById("header");
+//header_ctrl.innerHTML = "INIT";
+//var board_ctrl = document.getElementById("k2b");
+//board_ctrl.addEventListener('click', (e) => {
+//	header_ctrl.innerHTML = "click " + e.clientX + " / " + e.clientY;
+//}
+
 var myVar = window.setInterval(liveTimer, 1000);
 
 function liveTimer() {
@@ -173,7 +185,7 @@ function liveTimer() {
 var bottom_ctrl = document.getElementById("bottom");
 var board_ctrl = document.getElementById("k2b");
 var header_ctrl = document.getElementById("header");
-var url = "http://192.168.1.106/k2z/api/live.php?database=12x12&channel=1";
+var url = "http://192.168.0.48/k2z/api/live.php?database=12x12&channel=1";
 //var params = "database=12x12";
 
 	var request = new XMLHttpRequest();
@@ -194,8 +206,8 @@ var url = "http://192.168.1.106/k2z/api/live.php?database=12x12&channel=1";
 
 window.onload = function() {
 
-var c = document.getElementById("k2b");
-var ctx = c.getContext("2d");
+var board = document.getElementById("k2b");
+var ctx = board.getContext("2d");
 
 drawBoard(ctx);
 

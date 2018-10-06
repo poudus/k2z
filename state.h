@@ -73,6 +73,7 @@ int state_moves(BOARD *board, STATE *state, char orientation, double opponent_de
 bool winning_field(FIELD *pfield);
 bool empty_field(FIELD *pfield);
 char* state_signature(BOARD *board, STATE *state, char *signature);
+bool find_move(STATE *state, unsigned short sid);
 
 
 

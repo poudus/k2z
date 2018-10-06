@@ -127,27 +127,34 @@ bool empty_field(FIELD *pfield)
 double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_decay, double wpegs, double wlinks, double wzeta)
 {
 double	sum_weight = 0.0, sum_p = 0.0, lambda_weight = 1.0;
-int lowest_lambda = 99;
+int lowest_lambda = 99, nb_lambdas = 0;
+double	lambda_score[16];
 	
 	for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
 	{
+		lambda_score[lambda] = 0.0;
 		if (player->lambda[lambda].waves > 0 || opponent->lambda[lambda].waves > 0)
 		{
 			if (lambda < lowest_lambda) lowest_lambda = lambda;
-			sum_p += lambda_weight * score_lambda(&player->lambda[lambda], &opponent->lambda[lambda], wpegs, wlinks, wzeta);
+			lambda_score[lambda] = score_lambda(&player->lambda[lambda], &opponent->lambda[lambda], wpegs, wlinks, wzeta);
+			sum_p += lambda_weight * lambda_score[lambda];
 			player->lambda[lambda].weight = opponent->lambda[lambda].weight = lambda_weight;    
 			sum_weight += lambda_weight;
 			lambda_weight *= lambda_decay;
+			nb_lambdas++;
 		}
 	}
 	double dscore = sum_p / sum_weight;
 	if (lowest_lambda == 0)
 	{
-		if (dscore > 90.0) dscore = 100.0;
-		else if (dscore < 10.0) dscore = 0.0;
+		if (dscore > 99.0) dscore = 100.0;
+		else if (dscore < 1.0) dscore = 0.0;
 		else
 		{
-			printf("lowest_lambda_zero : score = %6.2f\n", dscore);
+			printf("lowest_lambda_zero : score = %6.2f %%  =  %6.2f / %-6.2f    L%d\n", dscore, sum_p, sum_weight, nb_lambdas);
+			for (int ll = 0 ; ll < nb_lambdas ; ll++)
+				printf("L%d   %6.2f   %6.2f   %6d / %-6d\n", ll, lambda_score[ll], player->lambda[ll].weight,
+				player->lambda[ll].waves, opponent->lambda[ll].waves);
 			exit(-1);
 		}
 	}
@@ -652,6 +659,19 @@ char* state_signature(BOARD *board, STATE *state, char *signature)
 		strcat(signature, board->step[state->vertical.link[l]].code);
 
 	return signature;
+}
+
+bool find_move(STATE *state, unsigned short sid)
+{
+	for (int ph = 0 ; ph < state->horizontal.pegs ; ph++)
+	{
+		if (state->horizontal.peg[ph] == sid) return true;
+	}
+	for (int pv = 0 ; pv < state->vertical.pegs ; pv++)
+	{
+		if (state->vertical.peg[pv] == sid) return true;
+	}
+	return false;
 }
 
 
