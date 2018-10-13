@@ -442,6 +442,7 @@ BOOK_MOVE bm[100];
 				slot = parse_slot(board, last_move);
 				move(board, &my_state, &new_state, slot, opp_orientation);
 				move_number++;
+				UpdateLiveSignature(pgConn, channel, state_signature(board, &new_state, buffer));
 				double dwq = eval_orientation(board, &new_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
 				printf("last move = %s  e= %6.2f %%   tick= %7d     moves =  %s  (%lu)\n", last_move, dwq, tick, moves, strlen(moves)/2);
 				//-----------
@@ -1028,8 +1029,8 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 							{
 								if (RegisterLive(pgConn, channel, player_id))
 								{
-									printf("\nregistered live channel id = %d, hp = %3d        iloop =  %d/%d\n",
-										channel, player_id, iloop+1, live_loop);
+					printf("\nregistered live channel id = %d, hp = %3d        iloop =  %d/%d   wait = %d\n",
+										channel, player_id, iloop+1, live_loop, wait_live);
 									// wait for V player to join
 									int nb_wait = 0, vp = 0;
 									do
@@ -1043,7 +1044,7 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 										printf("vp %d joined live channel %d  (wait = %d)\n", vp, channel, nb_wait);
 										GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, vp);
 										sleep(10);
-									} else printf("wait aborted after %d seconds.\n",wait_live);
+									} else printf("wait aborted after %d seconds.\n", wait_live);
 									DeleteLive(pgConn, channel);
 									sleep(2);
 								}
@@ -1061,11 +1062,11 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 							{
 								if (JoinLive(pgConn, channel, player_id))
 								{
-									printf("\njoined live channel id = %d, vp = %3d            iloop =  %d/%d\n",
+									printf("\njoined live channel id = %d, vp = %3d            iloop =  %4d / %-4d\n",
 										channel, player_id, iloop+1, live_loop);
 									GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, 0);
 								}
-								else printf("cannot-join-live-channel %d\n", channel);
+								else printf("cannot-join-live-channel %d  iloop = %4d / %-4d\n", channel, iloop+1, live_loop);
 								sleep(15);
 							}
 							gettimeofday(&t_end, NULL);

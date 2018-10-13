@@ -611,6 +611,15 @@ bool PlayLive(PGconn *pgConn, int channel, char orientation, char *move, char *m
 	return nbc == 1;
 }
 
+bool UpdateLiveSignature(PGconn *pgConn, int channel, char *signature)
+{
+	int nbc = 0;
+
+	pgExecFormat(pgConn, &nbc,
+	"update k2s.live set signature = '%s' where channel = %d", signature, channel);
+	return nbc == 1;
+}
+
 bool ResignLive(PGconn *pgConn, int channel, char winner, char reason)
 {
 	int nbc = 0;

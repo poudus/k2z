@@ -173,8 +173,11 @@ var rect = board.getBoundingClientRect();
 var xx = parseInt((e.clientX - rect.left - 20) / 71);
 var yy = parseInt((e.clientY - rect.top - 20) / 71);
 var axis = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-bottom_ctrl.innerHTML = "onClick(): " + axis.charAt(xx) + "." + axis.charAt(yy);
+//bottom_ctrl.innerHTML = "onClick(): " + axis.charAt(xx) + "." + axis.charAt(yy);
 var url = "http://192.168.0.48/k2z/api/play.php?database=12x12&channel=1&move="+axis.charAt(xx)+axis.charAt(yy);
+var request = new XMLHttpRequest();
+	request.open('GET', url, false);
+	request.send(null);
 }
 
 var myVar = window.setInterval(liveTimer, 1000);
@@ -193,8 +196,11 @@ var url = "http://192.168.0.48/k2z/api/live.php?database=12x12&channel=1";
 		{
 			var response = JSON.parse(request.response);
 			//var rep = request.response.split(",");
-			bottom_ctrl.innerHTML = response[3] + ": " + response[2];
-			header_ctrl.innerHTML = "K2Z LIVE CHANNEL #" + response[0];
+			if (response[5] == "H" || response[5] == "V")
+				bottom_ctrl.innerHTML =  "Winner " + response[5] + " (" + response[6] + ") " + response[3] + " moves";
+			else
+				bottom_ctrl.innerHTML =  response[4] + " " + response[3] + ": " + response[2];
+			header_ctrl.innerHTML = "#" + response[0] + " " + response[7] + " vs " + response[8];
 			drawBoard(board_ctrl.getContext("2d"));
 			drawSignature(board_ctrl.getContext("2d"), response[1], response[2]);
 		}
@@ -211,6 +217,12 @@ var ctx = board.getContext("2d");
 drawBoard(ctx);
 
 board.addEventListener('click', onClickBoard, false);
+
+var url = "http://192.168.0.48/k2z/api/join.php?database=12x12&channel=1";
+var request = new XMLHttpRequest();
+	request.open('GET', url, false);
+	request.send(null);
+
 
 }
 

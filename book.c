@@ -140,7 +140,7 @@ int ComputeBookMoves(PGconn *pgConn, BOOK_MOVE *book_moves, int size, int min_co
 char	flipped_moves[128], buf[256];
 int	nb_book_moves = 0, nb_duplicate = 0;
 bool	hf, vf, duplicate = false;
-GAME	*games = malloc(sizeof(GAME)*100000);
+GAME	*games = malloc(sizeof(GAME)*200000);
 int	nb_positions = 0;
 POSITION *positions = malloc(sizeof(POSITION)*100000);
 
