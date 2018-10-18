@@ -496,8 +496,8 @@ PLAYER_PARAMETERS hpp, vpp;
 	{
 		double expr = EloExpectedResult(hpp.rating, vpp.rating);
 		double gl = coef * (1.0 - expr);
-		printf("winner    = %2d/%7.2f     %5.2f       x = %.2f\n", hp, hpp.rating, gl, expr);
-		printf("loser     = %2d/%7.2f     %5.2f       x = %.2f\n", vp, vpp.rating, -gl, 1.0-expr);
+		printf("winner    = %3d/%7.2f     %5.2f       x = %.2f\n", hp, hpp.rating, gl, expr);
+		printf("loser     = %3d/%7.2f     %5.2f       x = %.2f\n", vp, vpp.rating, -gl, 1.0-expr);
 		UpdatePlayerWin(pgConn, hpp.pid, gl);
 		UpdatePlayerLoss(pgConn, vpp.pid, gl);
 	}
@@ -505,8 +505,8 @@ PLAYER_PARAMETERS hpp, vpp;
 	{
 		double expr = EloExpectedResult(vpp.rating, hpp.rating);
 		double gl = coef * (1.0 - expr);
-		printf("winner    = %2d/%7.2f     %5.2f       x = %.2f\n", vp, vpp.rating, gl, expr);
-		printf("loser     = %2d/%7.2f     %5.2f       x = %.2f\n", hp, hpp.rating, -gl, 1.0-expr);
+		printf("winner    = %3d/%7.2f     %5.2f       x = %.2f\n", vp, vpp.rating, gl, expr);
+		printf("loser     = %3d/%7.2f     %5.2f       x = %.2f\n", hp, hpp.rating, -gl, 1.0-expr);
 		UpdatePlayerWin(pgConn, vpp.pid, gl);
 		UpdatePlayerLoss(pgConn, hpp.pid, gl);
 	}
@@ -572,6 +572,24 @@ bool JoinLive(PGconn *pgConn, int channel, int vp)
 	pgExecFormat(pgConn, &nbc, "update k2s.live set vp = %d, vpid = %d, ts = %llu where channel = %d and vp = 0 and vpid = 0",
 				vp, pid, uts, channel);
 	return nbc == 1;
+}
+
+bool LivePlayers(PGconn *pgConn, int channel, int* hp, int* vp)
+{
+	int nbc = 0;
+    char query[256];
+
+	sprintf(query, "select hp, vp from k2s.live where channel = %d", channel);
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL && PQntuples(pgres) == 1)
+	{
+        *hp = atoi(PQgetvalue(pgres, 0, 0));
+        *vp = atoi(PQgetvalue(pgres, 0, 1));
+
+		PQclear(pgres);
+        return true;
+	}
+	return false;
 }
 
 bool CheckLive(PGconn *pgConn, int channel, char orientation, char *last_move, char *moves)

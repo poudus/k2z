@@ -20,6 +20,7 @@ int main(int argc, char* argv[])
 char	buffer_error[512], database_name[32], flipped_moves[128], root[128], buf[128];
 PGconn *pgConn = NULL;
 int	size = 12, min_count = 10, depth = 2;
+double min_elo_sum = 0.0;
 BOOK_MOVE bmoves[16000];
 
 	if (argc > 1 && strlen(argv[1]) == 5)
@@ -31,18 +32,18 @@ BOOK_MOVE bmoves[16000];
 		//printf("\nsize         = %d\n", size);
 		pgConn = pgOpenConn(database_name, "k2", "", buffer_error);
 		//printf("database connection     = %p %s\n", pgConn, database_name);
-		root[0] = 0;
+		//root[0] = 0;
 		if (argc > 2)
 			depth = atoi(argv[2]);
 		if (argc > 3)
 			min_count = atoi(argv[3]);
 		if (argc > 4)
-			strcpy(root, argv[4]);
+			min_elo_sum = atof(argv[4]);
 
 		int nbi = 0, nbd = 0, len_root = strlen(root);
-		bool bInsert = (len_root == 0);
-		if (root[0] == '.') len_root = 0;
-		int nb_book_moves = ComputeBookMoves(pgConn, &bmoves[0], size, min_count, depth);
+		bool bInsert = true; //(len_root == 0);
+		//if (root[0] == '.') len_root = 0;
+		int nb_book_moves = ComputeBookMoves(pgConn, &bmoves[0], size, min_count, depth, min_elo_sum);
 
 		if (bInsert)
 			printf("\n%d deleted\n", DeleteBookMoves(pgConn, depth));
@@ -51,13 +52,13 @@ BOOK_MOVE bmoves[16000];
 		for (int bm = 0 ; bm < nb_book_moves ; bm++)
 		{
 			if (bInsert && InsertBookMove(pgConn, depth, &bmoves[bm])) nbi++;
-			else if (len_root == 0 || strncmp(root, bmoves[bm].key, len_root) == 0)
+			/*else if (len_root == 0 || strncmp(root, bmoves[bm].key, len_root) == 0)
 			{
 				printf("%s.%s   %6.2f %%   %5d  %4d - %-4d\n",
 					bmoves[bm].key, bmoves[bm].move, bmoves[bm].ratio,
 					bmoves[bm].count, bmoves[bm].win, bmoves[bm].loss);
 				nbd++;
-			}
+			}*/
 		}
 		if (bInsert)
 			printf("%d/%d inserted\n\n", nbi, nb_book_moves);
@@ -69,5 +70,6 @@ BOOK_MOVE bmoves[16000];
 		printf("error.invalid-database-name\n");
 		return -1;
 	}
+    CheckBook(pgConn);
 }
 

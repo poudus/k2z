@@ -135,10 +135,38 @@ int cmppos(const void *p1, const void *p2)
 		return -1;
 }
 
-int ComputeBookMoves(PGconn *pgConn, BOOK_MOVE *book_moves, int size, int min_count, int depth)
+bool chk_dup_move(char *moves, char *move, int *id1, int *id2)
 {
-char	flipped_moves[128], buf[256];
-int	nb_book_moves = 0, nb_duplicate = 0;
+	int len = strlen(moves);
+	if (len % 2 == 1) return true;
+	else
+	{
+		int len2 = len/2;
+		bool dup = false;
+		for (int i = 0 ; i < len2 -1 ; i++)
+		{
+		for (int j = i+1 ; j < len2 ; j++)
+		{
+			if (moves[2*i] == moves[2*j] && moves[2*i+1] == moves[2*j+1])
+			{
+				move[0] = moves[2*i];
+				move[1] = moves[2*i+1];
+				move[2] = 0;
+				*id1 = i+1;
+				*id2 = j+1;
+				dup = true;
+				break;
+			}
+		}
+		}
+		return dup;
+	}
+}
+
+int ComputeBookMoves(PGconn *pgConn, BOOK_MOVE *book_moves, int size, int min_count, int depth, double min_elo_sum)
+{
+char	flipped_moves[128], buf[256], tmp[32];
+int	nb_book_moves = 0, nb_duplicate = 0, id1, id2;
 bool	hf, vf, duplicate = false;
 GAME	*games = malloc(sizeof(GAME)*200000);
 int	nb_positions = 0;
@@ -150,7 +178,7 @@ POSITION *positions = malloc(sizeof(POSITION)*100000);
 	int nb_games = LoadGames(pgConn, games);
 	for (int ig = 0 ; ig < nb_games ; ig++)
 	{
-		if (strlen(games[ig].moves) >= 2 * depth)
+		if (strlen(games[ig].moves) > (2 * depth) && (games[ig].hr + games[ig].vr) >= min_elo_sum)
 		{
 			duplicate = false;
 			for (int ig2 = 0 ; ig2 < ig && !duplicate ; ig2++)
@@ -160,12 +188,16 @@ POSITION *positions = malloc(sizeof(POSITION)*100000);
             
             strcpy(buf, games[ig].moves);
             buf[2 * filter] = 0;
+if (chk_dup_move(games[ig].moves, tmp, &id1, &id2)) printf("DUP-MOVE  %s(%2d,%2d)  in %-48s  id = %6d\n", tmp, id1, id2, games[ig].moves, games[ig].id);
+else
+{
             strcpy(flipped_moves, FlipMoves(size, buf, filter, &hf, &vf));
             nb_positions = add_position(flipped_moves, trait, games[ig].winner, games[ig].hr, games[ig].vr, nb_positions, positions, duplicate);
+}
 		}
 
 	}
-	printf("\n%d games, %d duplicates, %d positions, depth = %d\n", nb_games, nb_duplicate, nb_positions, depth);
+	printf("\n%d games, %d duplicates, %d positions, depth = %d, elo >= %6.2f\n", nb_games, nb_duplicate, nb_positions, depth, min_elo_sum);
 	for (int ip = 0 ; ip < nb_positions ; ip++)
 	{
 		if (positions[ip].count >= min_count)
@@ -277,6 +309,37 @@ int nb_moves = 0;
 		PQclear(pgres);
 	} else nb_moves = -1;
 	return nb_moves;
+}
+
+void CheckBook(PGconn *pgConn)
+{
+    bool bfound = false;
+    int depth = 0;
+    char move[4], key[32];
+	
+	PGresult *pgres = pgQuery(pgConn, "select key, move, depth from k2s.book order by depth asc");
+	if (pgres != NULL)
+	{
+        int nbc = PQntuples(pgres);
+        for (int i = 0 ; i < nbc ; i++)
+        {
+			strcpy(key, PQgetvalue(pgres, i, 0));
+			strcpy(move, PQgetvalue(pgres, i, 1));
+			depth = atoi(PQgetvalue(pgres, i, 2));
+            //----------
+            if (strlen(key) == 2 * depth)
+            {
+                bfound = false;
+                for (int j = 0 ; j < depth ; j++)
+                {
+                    if (key[2*j] == move[0] && key[2*j+1] == move[1]) bfound = true;
+                }
+                if (bfound) printf("MOVE '%s' FOUND in KEY '%s'\n", move, key);
+            }
+            else printf("LENGTH MISMATCH  depth = %d  key = '%s'\n", depth, key);
+        }
+		PQclear(pgres);
+    }
 }
 
 

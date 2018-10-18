@@ -464,7 +464,7 @@ BOOK_MOVE bm[100];
 					msid = find_xy(board, offset+rand()%(board->width-2*offset), offset+rand()%(board->height-2*offset));
 				else
 				{
-                                    if (move_number >= 1 && move_number <= 6 && max_moves % 10 == 1)
+                                    if (move_number >= 1 && move_number <= 8 && max_moves % 10 == 1)
                                     {
                                         int nb_book_moves = ListBookMoves(pgConn, board->width, moves, &bm[0]);
                                         if (nb_book_moves > 0)
@@ -560,15 +560,34 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 	free_state(&my_state);
 	free_state(&new_state);
 	gettimeofday(&t_end, NULL);
-	if (orientation == 'H' && reason != 'T')
+	if ((orientation == 'H' || orientation == 'h' || opid == 999) && reason != 'T')
 	{
 		int ht = (int)(2 * total_think_duration / move_number);
 		int vt = (int)(2 * total_wait_duration / move_number);
-		int game_id = insertGame(pgConn, pid, opid, moves, winner, reason, total_think_duration + total_wait_duration, ht, vt);
+        printf("********  %c  pid = %d  opid = %d  winner = %c  ********\n", orientation, pid, opid, winner);
+int id1, id2;
+char tmp[32];
+if (chk_dup_move(moves, tmp, &id1, &id2))
+{
+    printf("DUP-MOVE  %s(%2d,%2d)  in %-48s\n", tmp, id1, id2, moves);
+    exit(-1);
+}
+        if (orientation == 'H' || orientation == 'h')
+        {
+        int game_id = insertGame(pgConn, pid, opid, moves, winner, reason, total_think_duration + total_wait_duration, ht, vt);
 		printf("live #%d:  winner %c   reason = %c    %2d moves  duration =  %-4d sec     game = %d  (%d vs %d)\n",
 			channel, winner, reason, move_number, (int)duration(&t_begin, &t_end)/1000, game_id, pid, opid);
 
 		UpdateRatings(pgConn, pid, opid, winner, 10.0);
+        }
+        else if (orientation == 'V' || orientation == 'v')
+        {
+		int game_id = insertGame(pgConn, opid, pid, moves, winner, reason, total_think_duration + total_wait_duration, ht, vt);
+		printf("live #%d:  winner %c   reason = %c    %2d moves  duration =  %-4d sec     game = %d  (%d vs %d)\n",
+			channel, winner, reason, move_number, (int)duration(&t_begin, &t_end)/1000, game_id, opid, pid);
+
+		UpdateRatings(pgConn, opid, pid, winner, 10.0);
+        }
 	}
 	else
 		printf("live #%d:  winner %c   reason = %c    %2d moves  duration =  %-4d sec\n",
@@ -1022,7 +1041,7 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 						char orient = parameters[1];
 						parameters[1] = 0;
 						int channel = atoi(parameters);
-						if (orient == 'H') // register
+						if (orient == 'H' || orient == 'h') // register
 						{
 							gettimeofday(&t_begin, NULL);
 							for (int iloop = 0 ; iloop < live_loop ; iloop++)
@@ -1045,8 +1064,8 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 										GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, vp);
 										sleep(10);
 									} else printf("wait aborted after %d seconds.\n", wait_live);
-									DeleteLive(pgConn, channel);
-									sleep(2);
+									if (orient == 'H') DeleteLive(pgConn, channel);
+									sleep(5);
 								}
 								else printf("cannot-register-live-channel %d\n", channel);
 							}
@@ -1055,18 +1074,22 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 								channel, player_id, (int)duration(&t_begin, &t_end)/60000, live_loop);
 							srand(t_end.tv_sec);
 						}
-						else if (orient == 'V') // join
+						else if (orient == 'V' || orient == 'v') // join
 						{
 							gettimeofday(&t_begin, NULL);
 							for (int iloop = 0 ; iloop < live_loop ; iloop++)
 							{
 								if (JoinLive(pgConn, channel, player_id))
 								{
-									printf("\njoined live channel id = %d, vp = %3d            iloop =  %4d / %-4d\n",
-										channel, player_id, iloop+1, live_loop);
-									GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, 0);
+                                    int vpp2 = 0, hpp2 = 0;
+                                    LivePlayers(pgConn, channel, &hpp2, &vpp2);
+									printf("\njoined live channel id = %d, vp = %3d      hp = %3d      iloop =  %4d / %-4d\n",
+                                           channel, player_id, hpp2, iloop+1, live_loop);
+									GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, hpp2);
+                                    sleep(10);
+                                    if (orient == 'V') DeleteLive(pgConn, channel);
 								}
-								else printf("cannot-join-live-channel %d  iloop = %4d / %-4d\n", channel, iloop+1, live_loop);
+								else printf("cannot-join-live-channel %d  iloop =  %4d / %-4d\n", channel, iloop+1, live_loop);
 								sleep(15);
 							}
 							gettimeofday(&t_end, NULL);
@@ -1174,7 +1197,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 								{
                                     int idb_move = -1;
                                     //==================
-                                    if ((move_number == 2 || move_number == 4 || move_number == 6) && hpp.max_moves % 10 == 1)
+                                    if ((move_number == 2 || move_number == 4 || move_number == 6 || move_number == 8) && hpp.max_moves % 10 == 1)
                                     {
                                         BOOK_MOVE bm[100];
                                         int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0]);
@@ -1233,7 +1256,7 @@ msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*o
 								{
                                     int idb_move = -1;
                                     //==================
-                                    if ((move_number == 1 || move_number == 3 || move_number == 5) && vpp.max_moves % 10 == 1)
+                                    if ((move_number == 1 || move_number == 3 || move_number == 5 || move_number == 7) && vpp.max_moves % 10 == 1)
                                     {
                                         BOOK_MOVE bm[100];
                                         int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0]);
@@ -1315,6 +1338,13 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 
 						if (strlen(current_game_moves) > 128)
 							current_game_moves[128] = 0;
+            int id1, id2;
+            char tmp[32];
+if (chk_dup_move(current_game_moves, tmp, &id1, &id2))
+{
+    printf("DUP-MOVE  %s(%2d,%2d)  in %-48s\n", tmp, id1, id2, current_game_moves);
+    exit(-1);
+}
 	int game_id = insertGame(pgConn, hpp.pid, vpp.pid, current_game_moves, winner, reason, duration(&t0_game, &tend_game), mh, mv);
 						printf("saved as  = %6d\n\n", game_id);
 					}

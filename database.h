@@ -51,6 +51,8 @@ bool CheckResign(PGconn *pgConn, int channel, char orientation, char *moves);
 bool WinLive(PGconn *pgConn, int channel, char winner, char reason);
 int WaitLive(PGconn *pgConn, int channel);
 bool UpdateLiveSignature(PGconn *pgConn, int channel, char *signature);
+bool LivePlayers(PGconn *pgConn, int channel, int* hp, int* vp);
+
 
 
 
