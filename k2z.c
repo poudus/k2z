@@ -429,7 +429,7 @@ BOOK_MOVE bm[100];
 		opponent_decay = pp.opp_decay;
 	}
 
-	if (orientation == 'H')
+	if (orientation == 'H' || orientation == 'h')
 		opp_orientation = 'V';
 
 	moves[0] = 0;
@@ -446,7 +446,8 @@ BOOK_MOVE bm[100];
 				double dwq = eval_orientation(board, &new_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
 				printf("last move = %s  e= %6.2f %%   tick= %7d     moves =  %s  (%lu)\n", last_move, dwq, tick, moves, strlen(moves)/2);
 				//-----------
-				if ((orientation == 'H' && empty_field(&new_state.horizontal)) || (orientation == 'V' && empty_field(&new_state.vertical)))
+				if (((orientation == 'H' || orientation == 'h') && empty_field(&new_state.horizontal)) ||
+					((orientation == 'V' || orientation == 'v') && empty_field(&new_state.vertical)))
 				{
 					printf("%c resign  --------   eval   = %5.2f %%\n", orientation, dwq);
 					winner = opp_orientation;
@@ -460,7 +461,7 @@ BOOK_MOVE bm[100];
 			{
 				idb_move = -1;
 				alpha_beta_eval = 0.0;
-				if (orientation == 'H' && move_number == 0)
+				if ((orientation == 'H' || orientation == 'h') && move_number == 0)
 					msid = find_xy(board, offset+rand()%(board->width-2*offset), offset+rand()%(board->height-2*offset));
 				else
 				{
@@ -510,8 +511,8 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 					double dwq2 = eval_orientation(board, &new_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
 					printf("%c played  : %s(%2d) %6.2f %%   abd = %7.2f %%\n", orientation, zmove, move_number, dwq2, alpha_beta_eval - dwq2);
 					//-----------
-					if ((orientation == 'H' && winning_field(&new_state.horizontal)) ||
-						(orientation == 'V' && winning_field(&new_state.vertical)))
+					if (((orientation == 'H' || orientation == 'h') && winning_field(&new_state.horizontal)) ||
+						((orientation == 'V' || orientation == 'v') && winning_field(&new_state.vertical)))
 					{
 						printf("%c win +++ eval   = %6.2f %%  move =      %s     moves =  %s\n", orientation, dwq2, zmove, moves);
 						winner = orientation;
@@ -1061,7 +1062,7 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 									if (vp > 0)
 									{
 										printf("vp %d joined live channel %d  (wait = %d)\n", vp, channel, nb_wait);
-										GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, vp);
+										GameLive(pgConn, &board, channel, toupper(orient), player_id, live_timeout, offset, vp);
 										sleep(10);
 									} else printf("wait aborted after %d seconds.\n", wait_live);
 									if (orient == 'H') DeleteLive(pgConn, channel);
@@ -1085,7 +1086,7 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
                                     LivePlayers(pgConn, channel, &hpp2, &vpp2);
 									printf("\njoined live channel id = %d, vp = %3d      hp = %3d      iloop =  %4d / %-4d\n",
                                            channel, player_id, hpp2, iloop+1, live_loop);
-									GameLive(pgConn, &board, channel, orient, player_id, live_timeout, offset, hpp2);
+									GameLive(pgConn, &board, channel, toupper(orient), player_id, live_timeout, offset, hpp2);
                                     sleep(10);
                                     if (orient == 'V') DeleteLive(pgConn, channel);
 								}
