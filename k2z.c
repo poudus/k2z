@@ -522,7 +522,7 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 				}
 				else
 				{
-					printf("%c.PLAY-ERROR channel = %d\n", orientation, orientation);
+					printf("%c.PLAY-ERROR channel = %d\n", orientation, channel);
 					reason = 'E';
 					end_of_game = true;
 				}
