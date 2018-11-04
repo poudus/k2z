@@ -73,11 +73,19 @@ int lambda = 0;
 		{
 			lambda = grid->path[w].slots - field->wave[w].pegs;
 
-			field->lambda[lambda].pegs += field->wave[w].pegs;
+			field->lambda[lambda].pegs  += field->wave[w].pegs;
 			field->lambda[lambda].links += field->wave[w].links;
-			field->lambda[lambda].zeta += field->wave[w].zeta;
+			field->lambda[lambda].zeta  += field->wave[w].zeta;
 
 			field->lambda[lambda].waves++;
+
+#ifdef __LINK1__
+			for (int s = 0 ; s < grid->path[w].steps ; s++)
+			{
+				if (field->link1[grid->path[w].step[s]] == 'X')
+					field->wave[w].zeta++;
+			}
+#endif
 
 			if (init_tracks)
 			{
@@ -151,7 +159,7 @@ double	lambda_score[16];
 		else if (dscore < 1.0) dscore = 0.0;
 		else
 		{
-			printf("lowest_lambda_zero : score = %6.2f %%  =  %6.2f / %-6.2f    L%d\n", dscore, sum_p, sum_weight, nb_lambdas);
+			printf("lowest_lambda_zero : score = %6.2f %%  =  %6.2f / %-6.2f  %dL\n", dscore, sum_p, sum_weight, nb_lambdas);
 			for (int ll = 0 ; ll < nb_lambdas ; ll++)
 				printf("L%d   %6.2f   %6.2f   %6d / %-6d\n", ll, lambda_score[ll], player->lambda[ll].weight,
 				player->lambda[ll].waves, opponent->lambda[ll].waves);
@@ -309,6 +317,16 @@ long init_state(STATE *state, unsigned int hpaths, unsigned int vpaths, bool all
 		memcpy(&state->vertical.wave[w].step, "----------------", 16);
 #endif
 	}
+#ifdef __LINK1__
+	for (int is = 0 ; is < NB_MAX_STEPS ; is++)
+	{
+		state->link[is] = ' ';
+		state->horizontal.link1[is] = ' ';
+		//state->horizontal.wlink1[is] = ' ';
+		state->vertical.link1[is] = ' ';
+		//state->vertical.wlink1[is] = ' ';
+	}
+#endif
 	state->horizontal.pegs = state->horizontal.links = 0;
 	state->vertical.pegs = state->vertical.links = 0;
 	return (hpaths+vpaths) * sizeof(WAVE);
@@ -339,6 +357,17 @@ void clone_state(STATE *from, STATE *to, bool alloc_waves)
 	to->vertical.links = from->vertical.links;
 	for (int il = 0 ; il < from->vertical.links ; il++)
 		to->vertical.link[il] = from->vertical.link[il];
+
+#ifdef __LINK1__
+	for (int is = 0 ; is < NB_MAX_STEPS ; is++)
+	{
+		to->link[is] = from->link[is];
+		to->horizontal.link1[is] = from->horizontal.link1[is];
+		//to->horizontal.wlink1[is] = from->horizontal.wlink1[is];
+		to->vertical.link1[is] = from->vertical.link1[is];
+		//to->vertical.wlink1[is] = from->vertical.wlink1[is];
+	}
+#endif
 }
 
 //
@@ -446,7 +475,7 @@ int	nb = 0, sc = 0, nb_vpaths = 0;
 	for (int c = 0 ; c < board->step[step].cuts ; c++)
 	{
 		sc = board->step[step].cut[c];
-        nb_vpaths = board->step[sc].vpaths;
+        	nb_vpaths = board->step[sc].vpaths;
 		//if (debug_state) printf("xcut[%4d/%4s] = %8d vx\n", sc, board->step[sc].code, board->step[sc].vpaths);
 		for (int s = 0 ; s < nb_vpaths ; s++)
 		{
@@ -519,6 +548,9 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 				if (sn == state->horizontal.peg[p]) // neighbor is peg
 				{
 					bpeg = true;
+#ifdef __LINK1__
+					bcut = (state->link[ln] != ' ');
+#else
 					for (int k = 0 ; k < state->horizontal.links && !bcut ; k++)
 					{
 						for (int kk = 0 ; kk < board->step[ln].cuts ; kk++)
@@ -541,12 +573,18 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 							}
 						}
 					}
+#endif
 				}
 			}
 			if (bpeg && !bcut)
 			{
 				state->horizontal.link[state->horizontal.links] = ln;
 				state->horizontal.links++;
+#ifdef __LINK1__
+				state->link[ln] = '=';
+				for (int il = 0 ; il < board->step[ln].cuts ; il++)
+					state->link[board->step[ln].cut[il]] = 'X';
+#endif
 				//if (debug_state) printf("debug.move: horizontal link created = %d, sn = %d\n", ln, sn);
 			}
 		}
@@ -572,6 +610,9 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 				if (sn == state->vertical.peg[p]) // neighbor is peg
 				{
 					bpeg = true;
+#ifdef __LINK1__
+					bcut = (state->link[ln] != ' ');
+#else
 					for (int k = 0 ; k < state->horizontal.links && !bcut ; k++)
 					{
 						for (int kk = 0 ; kk < board->step[ln].cuts ; kk++)
@@ -594,12 +635,18 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 							}
 						}
 					}
+#endif
 				}
 			}
 			if (bpeg && !bcut)
 			{
 				state->vertical.link[state->vertical.links] = ln;
 				state->vertical.links++;
+#ifdef __LINK1__
+				state->link[ln] = '=';
+				for (int il = 0 ; il < board->step[ln].cuts ; il++)
+					state->link[board->step[ln].cut[il]] = 'X';
+#endif
 				//if (debug_state) printf("debug.move: vertical link created = %d, sn = %d\n", ln, sn);
 			}
 		}
@@ -632,6 +679,12 @@ int state_move(BOARD *board, STATE *state, MOVE *move)
 	{
 		if (state->vertical.wave[vw].status == 'O') state->vertical.count++;
 	}
+#ifdef __LINK1__
+	state->horizontal.link1[0] = ' ';
+	//state->horizontal.wlink1[0] = ' ';
+	state->vertical.link1[0] = ' ';
+	//state->vertical.wlink1[0] = ' ';
+#endif
 	return state->horizontal.count + state->vertical.count;
 	//return state->horizontal.waves + state->vertical.waves;
 }

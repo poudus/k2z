@@ -2,6 +2,8 @@
 
 #include "board.h"
 
+//#define __LINK1__
+
 // ------------
 // DYNAMIC PLAY
 // ------------
@@ -40,11 +42,18 @@ unsigned short	peg[32], link[32];
 WAVE		*wave;
 LAMBDA		lambda[PATH_MAX_LENGTH];
 TRACK		track[NB_MAX_SLOTS];
+#ifdef __LINK1__
+unsigned char	link1[NB_MAX_STEPS];
+//unsigned char	wlink1[NB_MAX_STEPS];
+#endif
 } FIELD;
 
 typedef struct
 {
 FIELD		horizontal, vertical;
+#ifdef __LINK1__
+unsigned char	link[NB_MAX_STEPS];
+#endif
 } STATE;
 
 
