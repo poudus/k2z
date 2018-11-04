@@ -5,8 +5,8 @@
 #ifndef __BOARD__
 #define __BOARD__
 
-#define	NB_MAX_SLOTS	1024
-#define	NB_MAX_STEPS	4096
+#define	NB_MAX_SLOTS	256
+#define	NB_MAX_STEPS	512
 #define	PATH_MAX_LENGTH	16
 
 
