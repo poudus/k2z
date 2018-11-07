@@ -97,6 +97,7 @@ int ip = 0, ifound = -1;
 	{
 		strcpy(positions[nb_positions].key, key);
 		positions[nb_positions].count = 0;
+		positions[nb_positions].rcount = 0;
 		positions[nb_positions].win = 0;
 		positions[nb_positions].loss = 0;
 		positions[nb_positions].hr = 0.0;
@@ -197,10 +198,11 @@ else
 		}
 
 	}
-	printf("\n%d games, %d duplicates, %d positions, depth = %d, elo >= %6.2f\n", nb_games, nb_duplicate, nb_positions, depth, min_elo_sum);
+	printf("\n%d games, %d duplicates, %d positions, depth = %d, elo >= %6.2f, count >= %d\n",
+                nb_games, nb_duplicate, nb_positions, depth, min_elo_sum, min_count);
 	for (int ip = 0 ; ip < nb_positions ; ip++)
 	{
-		if (positions[ip].count >= min_count)
+		if (positions[ip].rcount >= min_count && (positions[ip].win + positions[ip].loss) > 0)
 		{
 			positions[ip].hr /= positions[ip].rcount;
 			positions[ip].vr /= positions[ip].rcount;
