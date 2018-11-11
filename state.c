@@ -17,23 +17,35 @@ double score(unsigned int ui1, unsigned int ui2)
 unsigned int sum = ui1 + ui2;
 
 	if (sum > 0.0)
-		return 100.0 * ui1 / sum;
+		return 100.0 * (double)ui1 / (double)sum;
+	else
+		return 50.0;
+}
+double balance(double d1, double d2)
+{
+double dsum = d1 + d2;
+
+	if (dsum > 0.0)
+		return 100.0 * d1 / dsum;
 	else
 		return 50.0;
 }
 
-double score_lambda(LAMBDA *l1, LAMBDA *l2, double wpegs, double wlinks, double wzeta)
+double score_lambda(LAMBDA *l1, LAMBDA *l2, double wpegs, double wspread, double wcross)
 {
-double weight = 1.0 + fabs(wpegs) + fabs(wlinks) + fabs(wzeta), sum_score = 0.0;
+double sum_weight = 1.0 + wpegs + wspread + wcross;
+double sum_score = score(l1->waves, l2->waves);
+double score_waves = sum_score;
 
-	sum_score = score(l1->waves, l2->waves);
-	sum_score += wpegs * score(l1->pegs, l2->pegs);
-	sum_score += wlinks * score(l1->links, l2->links);
-	sum_score += wzeta * score(l1->zeta, l2->zeta);
+	//sum_score += wpegs * score(l1->pegs, l2->pegs);
+double score_spread = balance(l1->spread * l1->waves, l2->spread * l2->waves);
+	sum_score += wspread * score_spread;
+	//sum_score += wcross * balance(l1->cross, l2->cross);
 
-	l1->score = sum_score / weight;
+	l1->score = sum_score / sum_weight;
 	l2->score = 100.0 - l1->score;
-
+if (l1->score > 100.0 || l1->score < 0.0) printf("l1 score = %6.2f  %6dw spread = %6.4f  %6.2f/%6.2f  %6.2f/%6.2f/%6.2f  %6.2f+%6.2f\n", l1->score, l1->waves, l1->spread, sum_score, sum_weight, wpegs, wspread, wcross, score_waves, score_spread);
+if (l2->score > 100.0 || l2->score < 0.0) printf("l2 score = %6.2f  %6dw spread = %6.4f  %6.2f/%6.2f  %6.2f/%6.2f/%6.2f  %6.2f+%6.2f\n", l2->score, l2->waves, l2->spread, sum_score, sum_weight, wpegs, wspread, wcross, score_waves, score_spread);
 	return l1->score;
 }
 
@@ -137,26 +149,44 @@ double eval_state(BOARD *board, FIELD *player, FIELD *opponent, double lambda_de
 double	sum_weight = 0.0, sum_p = 0.0, lambda_weight = 1.0;
 int lowest_lambda = 99, nb_lambdas = 0;
 double	lambda_score[16];
-	
+
 	for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
 	{
 		lambda_score[lambda] = 0.0;
 		if (player->lambda[lambda].waves > 0 || opponent->lambda[lambda].waves > 0)
 		{
 			if (lambda < lowest_lambda) lowest_lambda = lambda;
+
+			if (player->lambda[lambda].pegs > 0)
+				player->lambda[lambda].spread = 1.0 - (double)player->lambda[lambda].links / (double)player->lambda[lambda].pegs;
+			else
+				player->lambda[lambda].spread = 0.0;
+			player->lambda[lambda].cross = 0.0;
+
+			if (opponent->lambda[lambda].pegs > 0)
+			{
+				opponent->lambda[lambda].spread = 1.0 - (double)opponent->lambda[lambda].links / (double)opponent->lambda[lambda].pegs;
+			}
+			else
+				opponent->lambda[lambda].spread = 0.0;
+			opponent->lambda[lambda].cross = 0.0;
+
 			lambda_score[lambda] = score_lambda(&player->lambda[lambda], &opponent->lambda[lambda], wpegs, wlinks, wzeta);
+
 			sum_p += lambda_weight * lambda_score[lambda];
-			player->lambda[lambda].weight = opponent->lambda[lambda].weight = lambda_weight;    
+			player->lambda[lambda].weight = opponent->lambda[lambda].weight = lambda_weight;
+
 			sum_weight += lambda_weight;
 			lambda_weight *= lambda_decay;
+
 			nb_lambdas++;
 		}
 	}
 	double dscore = sum_p / sum_weight;
 	if (lowest_lambda == 0)
 	{
-		if (dscore > 99.0) dscore = 100.0;
-		else if (dscore < 1.0) dscore = 0.0;
+		if (dscore > 95.0) dscore = 100.0;
+		else if (dscore < 5.0) dscore = 0.0;
 		else
 		{
 			printf("lowest_lambda_zero : score = %6.2f %%  =  %6.2f / %-6.2f  %dL\n", dscore, sum_p, sum_weight, nb_lambdas);
@@ -726,5 +756,3 @@ bool find_move(STATE *state, unsigned short sid)
 	}
 	return false;
 }
-
-

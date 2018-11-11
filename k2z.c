@@ -246,7 +246,7 @@ char minmax[8], szmov[32];
 				if (evab > dv)
 				{
 					dv = evab;
-					*sid = zemoves[im].idx;		
+					*sid = zemoves[im].idx;
 				}
 				if (dv > alpha) alpha = dv;
 				free_state(&new_state);
@@ -276,7 +276,7 @@ char minmax[8], szmov[32];
 				if (evab < dv)
 				{
 					dv = evab;
-					*sid = zemoves[im].idx;	
+					*sid = zemoves[im].idx;
 				}
 				if (dv < beta) beta = dv;
 				free_state(&new_state);
@@ -407,7 +407,7 @@ bool end_of_game = false;
 char last_move[8], zmove[8], moves[128], winner = ' ', reason = ' ', opp_orientation = 'H', buffer[256];
 int  tick = 0, slot = 0, move_number = 0, depth = 2, max_moves = 20, msid = 0, total_think_duration = 0, total_wait_duration = 0, idb_move = -1;
 STATE my_state, new_state;
-double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, lambda_decay = 0.8, opponent_decay = 0.8, alpha_beta_eval = 0.0;
+double wpegs = 0.0, wspread = 0.0, wzeta = 0.0, lambda_decay = 0.8, opponent_decay = 0.8, alpha_beta_eval = 0.0;
 PLAYER_PARAMETERS pp;
 struct timeval t_begin, t_end;
 BOOK_MOVE bm[100];
@@ -427,6 +427,8 @@ BOOK_MOVE bm[100];
 		max_moves = pp.max_moves;
 		lambda_decay = pp.lambda_decay;
 		opponent_decay = pp.opp_decay;
+		wspread = pp.spread;
+		wzeta = pp.zeta;
 	}
 
 	if (orientation == 'H' || orientation == 'h')
@@ -443,7 +445,7 @@ BOOK_MOVE bm[100];
 				move(board, &my_state, &new_state, slot, opp_orientation);
 				move_number++;
 				UpdateLiveSignature(pgConn, channel, state_signature(board, &new_state, buffer));
-				double dwq = eval_orientation(board, &new_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+				double dwq = eval_orientation(board, &new_state, orientation, lambda_decay, wpegs, wspread, wzeta, false);
 				printf("last move = %s  e= %6.2f %%   tick= %7d     moves =  %s  (%lu)\n", last_move, dwq, tick, moves, strlen(moves)/2);
 				//-----------
 				if (((orientation == 'H' || orientation == 'h') && empty_field(&new_state.horizontal)) ||
@@ -493,7 +495,7 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 
 						gettimeofday(&t0, NULL);
 						msid = think_alpha_beta(board, &my_state, orientation, depth, max_moves,
-							lambda_decay, opponent_decay, wpegs, wlinks, wzeta, &alpha_beta_eval);
+							lambda_decay, opponent_decay, wpegs, wspread, wzeta, &alpha_beta_eval);
 
 						gettimeofday(&t_end, NULL);
 						total_think_duration += (int)(duration(&t0, &t_end));
@@ -508,7 +510,7 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 				if (PlayLive(pgConn, channel, orientation, zmove, moves, state_signature(board, &new_state, buffer)))
 				{
 					tick = 0;
-					double dwq2 = eval_orientation(board, &new_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+					double dwq2 = eval_orientation(board, &new_state, orientation, lambda_decay, wpegs, wspread, wzeta, false);
 					printf("%c played  : %s(%2d) %6.2f %%   abd = %7.2f %%\n", orientation, zmove, move_number, dwq2, alpha_beta_eval - dwq2);
 					//-----------
 					if (((orientation == 'H' || orientation == 'h') && winning_field(&new_state.horizontal)) ||
@@ -700,6 +702,7 @@ PGconn *pgConn = NULL;
 					if (strcmp(paramline, "lambda-decay") == 0) lambda_decay = dvalue;
 					else if (strcmp(paramline, "opponnent-decay") == 0) opponent_decay = dvalue;
 					else if (strcmp(paramline, "max-moves") == 0) max_moves = ivalue;
+					else if (strcmp(paramline, "wlinks") == 0) wlinks = dvalue;
 					else if (strcmp(paramline, "wzeta") == 0) wzeta = dvalue;
 					else if (strcmp(paramline, "hp-min") == 0) hp_min = ivalue;
 					else if (strcmp(paramline, "hp-max") == 0) hp_max = ivalue;
@@ -1156,7 +1159,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 							{
 								if (orientation == 'H')
 								{
-		eval_orientation(&board, current_state, orientation, RD3(hpp.lambda_decay, random_decay), wpegs, wlinks, wzeta, true);
+		eval_orientation(&board, current_state, orientation, RD3(hpp.lambda_decay, random_decay), wpegs, hpp.spread, hpp.zeta, true);
 									if (empty_field(&state_h.horizontal))
 									{
 										printf("H resign\n");
@@ -1174,7 +1177,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 								}
 								else
 								{
-		eval_orientation(&board, current_state, orientation, RD3(vpp.lambda_decay, random_decay), wpegs, wlinks, wzeta, true);
+		eval_orientation(&board, current_state, orientation, RD3(vpp.lambda_decay, random_decay), wpegs, vpp.spread, vpp.zeta, true);
 									if (empty_field(&state_v.vertical))
 									{
 										printf("V resign\n");
@@ -1247,7 +1250,7 @@ msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*o
 					else
 		msid = think_alpha_beta(&board, current_state, orientation, hpp.depth, hpp.max_moves,
 				RD3(hpp.lambda_decay, random_decay), RD3(hpp.opp_decay, random_decay),
-				wpegs, wlinks, wzeta, &alpha_beta_eval);
+				wpegs, hpp.spread, hpp.zeta, &alpha_beta_eval);
 									}
 									move(&board, &state_h, &state_v, msid, orientation);
 									orientation = 'V';
@@ -1304,7 +1307,7 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 										else
 			msid = think_alpha_beta(&board, current_state, orientation, vpp.depth, vpp.max_moves,
 					RD3(vpp.lambda_decay, random_decay), RD3(vpp.opp_decay, random_decay),
-					wpegs, wlinks, wzeta, &alpha_beta_eval);
+					wpegs, vpp.spread, vpp.zeta, &alpha_beta_eval);
 									}
 									move(&board, &state_v, &state_h, msid, orientation);
 									orientation = 'H';
@@ -1313,7 +1316,10 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 								strcat(current_game_moves, board.slot[msid].code);
 								move_number++;
 								printf("play %d : %3d/%s\n", move_number, msid, board.slot[msid].code);
-								eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, wlinks, wzeta, false);
+								if (orientation == 'H')
+									eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, hpp.spread, hpp.zeta, false);
+								else
+									eval_orientation(&board, current_state, orientation, lambda_decay, wpegs, vpp.spread, vpp.zeta, false);
 								printf("---------- move  %c --------\n", orientation);
 							}
 							gettimeofday(&t_end, NULL);
@@ -1378,6 +1384,8 @@ if (chk_dup_move(current_game_moves, tmp, &id1, &id2))
 							if (strcmp(parameters, "lambda-decay") == 0) lambda_decay = dvalue;
 							else if (strcmp(parameters, "opponnent-decay") == 0) opponent_decay = dvalue;
 							else if (strcmp(parameters, "max-moves") == 0) max_moves = ivalue;
+							else if (strcmp(parameters, "wpegs") == 0) wpegs = dvalue;
+							else if (strcmp(parameters, "wlinks") == 0) wlinks = dvalue;
 							else if (strcmp(parameters, "wzeta") == 0) wzeta = dvalue;
 							else if (strcmp(parameters, "hp-min") == 0) hp_min = ivalue;
 							else if (strcmp(parameters, "hp-max") == 0) hp_max = ivalue;
@@ -1418,7 +1426,7 @@ if (chk_dup_move(current_game_moves, tmp, &id1, &id2))
 					printf("random-decay   = %5.2f\n", random_decay);
 					printf("elo-coef       = %5.2f\n", elo_coef);
 				}
-				else if (strcmp("position", action) == 0) // 
+				else if (strcmp("position", action) == 0) //
 				{
 					char zsmov[512];
 					int lenp = strlen(current_game_moves)/2;
@@ -1473,13 +1481,15 @@ if (chk_dup_move(current_game_moves, tmp, &id1, &id2))
 						for (int lambda = 0 ; lambda < PATH_MAX_LENGTH ; lambda++)
 						{
 if (current_state->horizontal.lambda[lambda].waves > 0 || current_state->vertical.lambda[lambda].waves > 0)
-	printf("lambda %02d:  [%6.4f] x    %6.2f %%  = (%8d+%8d+%8d-%8d)   /  %6.2f %%  = (%8d+%8d+%8d-%8d)  : %02d\n",
+	printf("lambda %02d:  [%6.4f] x    %6.2f %%  = (%7dw%7dp%7dl  %6.4f %6.4f)   /  %6.2f %%  = (%7dw%7dp%7dl  %6.4f %6.4f)  : %02d\n",
 		lambda,
 		current_state->horizontal.lambda[lambda].weight,
 		current_state->horizontal.lambda[lambda].score, current_state->horizontal.lambda[lambda].waves,
-		current_state->horizontal.lambda[lambda].pegs, current_state->horizontal.lambda[lambda].links, current_state->horizontal.lambda[lambda].zeta,
+		current_state->horizontal.lambda[lambda].pegs, current_state->horizontal.lambda[lambda].links,
+		current_state->horizontal.lambda[lambda].spread, current_state->horizontal.lambda[lambda].cross,
 		current_state->vertical.lambda[lambda].score, current_state->vertical.lambda[lambda].waves,
-		current_state->vertical.lambda[lambda].pegs, current_state->vertical.lambda[lambda].links, current_state->vertical.lambda[lambda].zeta,
+		current_state->vertical.lambda[lambda].pegs, current_state->vertical.lambda[lambda].links,
+		current_state->vertical.lambda[lambda].spread, current_state->vertical.lambda[lambda].cross,
 		lambda);
 						}
 					}

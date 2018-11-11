@@ -4,7 +4,7 @@
 
 typedef struct
 {
-double	lambda_decay, opp_decay, rating;
+double	lambda_decay, opp_decay, rating, spread, zeta;
 int	pid, max_moves, depth;
 } PLAYER_PARAMETERS;
 

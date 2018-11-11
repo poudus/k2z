@@ -31,7 +31,7 @@ int		waves;
 unsigned int	pegs, links, zeta;
 unsigned int	slot[NB_MAX_SLOTS];
 unsigned int	step[NB_MAX_STEPS];
-double		score, weight;
+double        score, weight, spread, cross;
 } LAMBDA;
 
 
@@ -83,7 +83,3 @@ bool winning_field(FIELD *pfield);
 bool empty_field(FIELD *pfield);
 char* state_signature(BOARD *board, STATE *state, char *signature);
 bool find_move(STATE *state, unsigned short sid);
-
-
-
-

@@ -14,15 +14,15 @@
 typedef struct
 {
 	int id, depth, max_moves, games, win, loss;
-	char label[16];
-	double rating, avg, des, ratio;
+	char label[16], name[16];
+	double rating, avg, des, ratio, spread, zeta;
 } PLAYER;
 
 int LoadPlayers(PGconn *pgConn, PLAYER *pp)
 {
 char query[256];
 
-	strcpy(query, "select id, max_moves, depth, rating, win, loss from k2s.player order by rating desc");
+	strcpy(query, "select id, max_moves, depth, rating, win, loss, spread, zeta, name from k2s.player order by rating desc");
 	
 	PGresult *pgres = pgQuery(pgConn, query);
 	if (pgres != NULL)
@@ -30,7 +30,6 @@ char query[256];
 		int nb_players = PQntuples(pgres);
 		if (nb_players > 0)
 		{
-			//int ip = 0;
 			for (int ip = 0 ; ip < nb_players ; ip++)
 			{
 				pp->id = atoi(PQgetvalue(pgres, ip, 0));
@@ -39,6 +38,9 @@ char query[256];
 				pp->depth = atoi(PQgetvalue(pgres, ip, 2));
 				pp->win = atoi(PQgetvalue(pgres, ip, 4));
 				pp->loss = atoi(PQgetvalue(pgres, ip, 5));
+				pp->spread = atof(PQgetvalue(pgres, ip, 6));
+				pp->zeta = atof(PQgetvalue(pgres, ip, 7));
+				strcpy(pp->name, PQgetvalue(pgres, ip, 8));
 				pp->avg = 0.0;
 				pp->ratio = 0.0;
 				sprintf(pp->label, "%1d/%-2d", pp->depth, pp->max_moves);
@@ -125,7 +127,7 @@ bool	byavgmd = false;
 		sprintf(database_name, "k%s", argv[1]);
 		pgConn = pgOpenConn(database_name, "k2", "", buffer_error);
 		//printf("database connection     = %p %s\n", pgConn, database_name);
-		printf("\npid  d/mm   rating   avgmd   games    win   loss   ratio %%    e/s\n-----------------------------------------------------------------\n");
+		printf("\npid  d/mm  spread  rating   avgmd   games    win   loss   ratio %%    e/s\n-----------------------------------------------------------------\n");
 		int nb_players = LoadPlayers(pgConn, &players[0]);
 		if (argc > 2)
 		{
@@ -155,8 +157,8 @@ bool	byavgmd = false;
 			{
 				if (ip < nb_players -1)
 					players[ip].des = 1000.0 * (players[ip].rating - players[ip+1].rating) / (players[ip].avg - players[ip+1].avg);
-				printf("%3d %5s %8.2f  %6.1f  %6d  %5d - %-5d  %5.1f %%   %4d\n", players[ip].id, players[ip].label,
-					players[ip].rating, players[ip].avg / 1000.0,
+				printf("%3d %5s  %5.2f  %8.2f  %6.1f  %6d  %5d - %-5d  %5.1f %%   %4d\n", players[ip].id, players[ip].label,
+					players[ip].spread, players[ip].rating, players[ip].avg / 1000.0,
 					players[ip].games, players[ip].win, players[ip].loss, players[ip].ratio,
 					(int)players[ip].des);
 			}
@@ -165,8 +167,8 @@ bool	byavgmd = false;
 		{
 			for (int ip = 0 ; ip < nb_players ; ip++)
 			{
-				printf("%3d %5s %8.2f  %6.1f  %6d  %5d - %-5d  %5.1f %%\n", players[ip].id, players[ip].label,
-					players[ip].rating, players[ip].avg / 1000.0,
+				printf("%3d %5s %5.2f  %8.2f  %6.1f  %6d  %5d - %-5d  %5.1f %%\n", players[ip].id, players[ip].label,
+					players[ip].spread, players[ip].rating, players[ip].avg / 1000.0,
 					players[ip].games, players[ip].win, players[ip].loss, players[ip].ratio);
 			}
 		}
