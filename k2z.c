@@ -467,7 +467,7 @@ BOOK_MOVE bm[100];
 					msid = find_xy(board, offset+rand()%(board->width-2*offset), offset+rand()%(board->height-2*offset));
 				else
 				{
-                                    if (move_number >= 1 && move_number <= 8 && max_moves % 10 == 1)
+                                    if (move_number >= 1 && move_number <= 10 && max_moves % 5 == 1)
                                     {
                                         int nb_book_moves = ListBookMoves(pgConn, board->width, moves, &bm[0]);
                                         if (nb_book_moves > 0)
@@ -1201,7 +1201,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 								{
                                     int idb_move = -1;
                                     //==================
-                                    if ((move_number == 2 || move_number == 4 || move_number == 6 || move_number == 8) && hpp.max_moves % 10 == 1)
+                                    if ((move_number == 2 || move_number == 4 || move_number == 6 || move_number == 8 || move_number == 10) && hpp.max_moves % 5 == 1)
                                     {
                                         BOOK_MOVE bm[100];
                                         int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0]);
@@ -1260,7 +1260,7 @@ msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*o
 								{
                                     int idb_move = -1;
                                     //==================
-                                    if ((move_number == 1 || move_number == 3 || move_number == 5 || move_number == 7) && vpp.max_moves % 10 == 1)
+                                    if ((move_number == 1 || move_number == 3 || move_number == 5 || move_number == 7 || move_number == 9) && vpp.max_moves % 5 == 1)
                                     {
                                         BOOK_MOVE bm[100];
                                         int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0]);
