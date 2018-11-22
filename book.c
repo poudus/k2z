@@ -167,10 +167,9 @@ bool chk_dup_move(char *moves, char *move, int *id1, int *id2)
 int ComputeBookMoves(PGconn *pgConn, BOOK_MOVE *book_moves, int size, int min_count, int depth, double min_elo_sum)
 {
 char	flipped_moves[128], buf[256], tmp[32];
-int	nb_book_moves = 0, nb_duplicate = 0, id1, id2;
+int     nb_book_moves = 0, nb_duplicate = 0, id1, id2, nb_positions = 0, nb_games_filtered = 0;
 bool	hf, vf, duplicate = false;
 GAME	*games = malloc(sizeof(GAME)*200000);
-int	nb_positions = 0;
 POSITION *positions = malloc(sizeof(POSITION)*100000);
 
 	//int depth = strlen(key) / 2;
@@ -195,11 +194,12 @@ else
             strcpy(flipped_moves, FlipMoves(size, buf, filter, &hf, &vf));
             nb_positions = add_position(flipped_moves, trait, games[ig].winner, games[ig].hr, games[ig].vr, nb_positions, positions, duplicate);
 }
+            nb_games_filtered++;
 		}
 
 	}
-	printf("\n%d games, %d duplicates, %d positions, depth = %d, elo >= %6.2f, count >= %d\n",
-                nb_games, nb_duplicate, nb_positions, depth, min_elo_sum, min_count);
+	printf("\n%d games filtered, %d duplicates, %d positions, depth = %d, elo >= %6.2f, count >= %d\n",
+                nb_games_filtered, nb_duplicate, nb_positions, depth, min_elo_sum, min_count);
 	for (int ip = 0 ; ip < nb_positions ; ip++)
 	{
 		if (positions[ip].rcount >= min_count && (positions[ip].win + positions[ip].loss) > 0)
