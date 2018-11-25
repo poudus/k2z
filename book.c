@@ -276,7 +276,7 @@ int DeleteBookMoves(PGconn *pgConn, int depth)
 
 int ListBookMoves(PGconn *pgConn, int size, char *moves, BOOK_MOVE *bm)
 {
-char query[256], key[128], buf[32];
+char query[256], key[128];
 bool hf, vf;
 int nb_moves = 0;
 
@@ -294,9 +294,8 @@ int nb_moves = 0;
 			strcpy(bm->key, PQgetvalue(pgres, nb_moves, 0));
             
 			strcpy(key, PQgetvalue(pgres, nb_moves, 1));
-			strcpy(buf, key);
-            key[0]= Flip(size, key[0], hf);
-            key[1]= Flip(size, key[1], vf);
+            		key[0]= Flip(size, key[0], hf);
+            		key[1]= Flip(size, key[1], vf);
 			strcpy(bm->move, key);
             
 			bm->ratio = atof(PQgetvalue(pgres, nb_moves, 2));
@@ -305,7 +304,6 @@ int nb_moves = 0;
 			bm->loss = atoi(PQgetvalue(pgres, nb_moves, 5));
             
 			nb_moves++;
-            //printf("%2d  %s->%s  %6.2f\n", nb_moves, buf, key, bm->ratio);
 			bm++;
 		}
 		PQclear(pgres);
@@ -342,6 +340,67 @@ void CheckBook(PGconn *pgConn)
         }
 		PQclear(pgres);
     }
+}
+
+
+int DeepBookMoves(PGconn *pgConn, int depth, BOOK_MOVE *bm)
+{
+char	query[256];
+            
+	sprintf(query, "select key, move, ratio, count, win, loss from k2s.book where depth = %d order by key", depth);
+
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		int nb_books = PQntuples(pgres);
+		for (int ib = 0 ; ib < nb_books ; ib++)
+		{
+			strcpy(bm->key, PQgetvalue(pgres, ib, 0));
+			strcpy(bm->move, PQgetvalue(pgres, ib, 1));
+	    
+			bm->ratio = atof(PQgetvalue(pgres, ib, 2));
+			bm->count = atoi(PQgetvalue(pgres, ib, 3));
+			bm->win   = atoi(PQgetvalue(pgres, ib, 4));
+			bm->loss  = atoi(PQgetvalue(pgres, ib, 5));
+	    
+			bm++;
+		}
+		PQclear(pgres);
+		return nb_books;
+	} else return -1;
+}
+
+int BuildParentBook(PGconn *pgConn, int depth, BOOK_MOVE *bm)
+{
+BOOK_MOVE children[5000];
+char	previous_key[64];
+
+int	iparent = 0;
+int	nb_children = DeepBookMoves(pgConn, depth + 1, &children[0]);
+
+	previous_key[0] = 0;
+	for (int ichild = 0 ; ichild < nb_children ; ichild++)
+	{
+		if (strcmp(previous_key, children[ichild].key) == 0)
+		{
+			bm->count += children[ichild].count;
+			bm->ratio += children[ichild].ratio;
+			bm->win += children[ichild].win;
+			bm->loss += children[ichild].loss;
+		}
+		else
+		{
+			strcpy(bm->key, children[ichild].key);
+			bm->count = children[ichild].count;
+			bm->ratio = children[ichild].ratio;
+			bm->win = children[ichild].win;
+			bm->loss = children[ichild].loss;
+			iparent++;
+			bm++;
+		}
+		strcpy(previous_key, children[ichild].key);
+	}
+	return iparent;
 }
 
 
