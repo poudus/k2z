@@ -261,8 +261,17 @@ bool InsertBookMove(PGconn *pgConn, int depth, BOOK_MOVE *bm)
 {
 	int nbc = 0;
 
-	pgExecFormat(pgConn, &nbc, "insert into k2s.book values (%d, '%s', '%s', %6.2f, %d, %d, %d)",
-				depth, bm->key, bm->move, bm->ratio, bm->count, bm->win, bm->loss);
+	pgExecFormat(pgConn, &nbc, "insert into k2s.book values (%d, '%s', '%s', %6.2f, %6.2f, %d, %d, %d)",
+				depth, bm->key, bm->move, bm->ratio, bm->ratio, bm->count, bm->win, bm->loss);
+	return nbc == 1;
+}
+
+bool UpdateDeepRatio(PGconn *pgConn, int depth, char *key, char *move, double deep_ratio)
+{
+	int nbc = 0;
+
+	pgExecFormat(pgConn, &nbc, "update k2s.book set deep_ratio = %6.2f where depth = %d and key = '%s' and move = '%s'",
+				deep_ratio, depth, key, move);
 	return nbc == 1;
 }
 
@@ -274,7 +283,7 @@ int DeleteBookMoves(PGconn *pgConn, int depth)
 	return nbc;
 }
 
-int ListBookMoves(PGconn *pgConn, int size, char *moves, BOOK_MOVE *bm)
+int ListBookMoves(PGconn *pgConn, int size, char *moves, BOOK_MOVE *bm, bool deep)
 {
 char query[256], key[128];
 bool hf, vf;
@@ -284,7 +293,10 @@ int nb_moves = 0;
     FlipMoves(size, key, strlen(key)/2, &hf, &vf);
     //printf("moves=%s  key=%s  hf=%c  vf=%c\n", moves, key, hf ? 'T' : 'F', vf ? 'T' : 'F');
             
-	sprintf(query, "select key, move, ratio, count, win, loss from k2s.book where key = '%s' order by ratio desc", key);
+    if (deep)
+        sprintf(query, "select key, move, ratio, deep_ratio, count, win, loss from k2s.book where key = '%s' order by deep_ratio desc", key);
+    else
+        sprintf(query, "select key, move, ratio, deep_ratio, count, win, loss from k2s.book where key = '%s' order by ratio desc", key);
 	
 	PGresult *pgres = pgQuery(pgConn, query);
 	if (pgres != NULL)
@@ -294,14 +306,23 @@ int nb_moves = 0;
 			strcpy(bm->key, PQgetvalue(pgres, nb_moves, 0));
             
 			strcpy(key, PQgetvalue(pgres, nb_moves, 1));
-            		key[0]= Flip(size, key[0], hf);
-            		key[1]= Flip(size, key[1], vf);
+            key[0]= Flip(size, key[0], hf);
+            key[1]= Flip(size, key[1], vf);
 			strcpy(bm->move, key);
             
+            if (deep)
+            {
+			bm->ratio = atof(PQgetvalue(pgres, nb_moves, 3));
+			bm->deep_ratio = atof(PQgetvalue(pgres, nb_moves, 3));
+            }
+            else
+            {
 			bm->ratio = atof(PQgetvalue(pgres, nb_moves, 2));
-			bm->count = atoi(PQgetvalue(pgres, nb_moves, 3));
-			bm->win = atoi(PQgetvalue(pgres, nb_moves, 4));
-			bm->loss = atoi(PQgetvalue(pgres, nb_moves, 5));
+			bm->deep_ratio = atof(PQgetvalue(pgres, nb_moves, 2));
+            }
+			bm->count = atoi(PQgetvalue(pgres, nb_moves, 4));
+			bm->win = atoi(PQgetvalue(pgres, nb_moves, 5));
+			bm->loss = atoi(PQgetvalue(pgres, nb_moves, 6));
             
 			nb_moves++;
 			bm++;
@@ -343,11 +364,37 @@ void CheckBook(PGconn *pgConn)
 }
 
 
+int select_move_ratios(PGconn *pgConn, int depth, char* key, BOOK_MOVE *bm)
+{
+int nbc = 0;
+char query[256];
+
+	sprintf(query, "select move, ratio, deep_ratio, count, win, loss from k2s.book where depth = %d and key = '%s' order by deep_ratio desc", depth, key);
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		int count = PQntuples(pgres);
+		for (int i = 0 ; i < count ; i++)
+		{
+			strcpy(bm->move, PQgetvalue(pgres, i, 0));
+			bm->ratio = atof(PQgetvalue(pgres, i, 1));
+			bm->deep_ratio = atof(PQgetvalue(pgres, i, 2));
+			bm->count = atoi(PQgetvalue(pgres, i, 3));
+			bm->win   = atoi(PQgetvalue(pgres, i, 4));
+			bm->loss  = atoi(PQgetvalue(pgres, i, 5));
+            bm++;
+		}
+		PQclear(pgres);
+        return count;
+	}
+}
+
+
 int DeepBookMoves(PGconn *pgConn, int depth, BOOK_MOVE *bm)
 {
 char	query[256];
             
-	sprintf(query, "select key, move, ratio, count, win, loss from k2s.book where depth = %d order by key", depth);
+	sprintf(query, "select key, move, ratio, deep_ratio, count, win, loss from k2s.book where depth = %d order by key asc, deep_ratio desc", depth);
 
 	PGresult *pgres = pgQuery(pgConn, query);
 	if (pgres != NULL)
@@ -359,9 +406,10 @@ char	query[256];
 			strcpy(bm->move, PQgetvalue(pgres, ib, 1));
 	    
 			bm->ratio = atof(PQgetvalue(pgres, ib, 2));
-			bm->count = atoi(PQgetvalue(pgres, ib, 3));
-			bm->win   = atoi(PQgetvalue(pgres, ib, 4));
-			bm->loss  = atoi(PQgetvalue(pgres, ib, 5));
+			bm->deep_ratio = atof(PQgetvalue(pgres, ib, 3));
+			bm->count = atoi(PQgetvalue(pgres, ib, 4));
+			bm->win   = atoi(PQgetvalue(pgres, ib, 5));
+			bm->loss  = atoi(PQgetvalue(pgres, ib, 6));
 	    
 			bm++;
 		}
@@ -370,13 +418,13 @@ char	query[256];
 	} else return -1;
 }
 
-int BuildParentBook(PGconn *pgConn, int depth, BOOK_MOVE *bm)
+int BuildParentBookMoves(PGconn *pgConn, int depth, BOOK_MOVE *bm)
 {
 BOOK_MOVE children[5000];
-char	previous_key[64];
+char	previous_key[64], move[4];
 
-int	iparent = 0;
-int	nb_children = DeepBookMoves(pgConn, depth + 1, &children[0]);
+int	nb_parents = 0;
+int	nb_children = DeepBookMoves(pgConn, depth, &children[0]);
 
 	previous_key[0] = 0;
 	for (int ichild = 0 ; ichild < nb_children ; ichild++)
@@ -384,23 +432,30 @@ int	nb_children = DeepBookMoves(pgConn, depth + 1, &children[0]);
 		if (strcmp(previous_key, children[ichild].key) == 0)
 		{
 			bm->count += children[ichild].count;
-			bm->ratio += children[ichild].ratio;
-			bm->win += children[ichild].win;
-			bm->loss += children[ichild].loss;
+			bm->win += children[ichild].loss;
+			bm->loss += children[ichild].win;
 		}
 		else
 		{
+            int slen = strlen(children[ichild].key);
+            move[0] = children[ichild].key[slen-2];
+            move[1] = children[ichild].key[slen-1];
+            move[2] = 0;
 			strcpy(bm->key, children[ichild].key);
+            bm->key[slen-2] = 0;
+			strcpy(bm->move, move);
 			bm->count = children[ichild].count;
-			bm->ratio = children[ichild].ratio;
-			bm->win = children[ichild].win;
-			bm->loss = children[ichild].loss;
-			iparent++;
+			bm->ratio = -children[ichild].ratio;
+			bm->deep_ratio = -children[ichild].deep_ratio;
+			bm->win = children[ichild].loss;
+			bm->loss = children[ichild].win;
+            
+			nb_parents++;
 			bm++;
 		}
 		strcpy(previous_key, children[ichild].key);
 	}
-	return iparent;
+	return nb_parents;
 }
 
 

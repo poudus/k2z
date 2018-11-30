@@ -11,6 +11,12 @@ k2b: k2b.o database.o book.o
 
 knb: knb.o database.o book.o
 	gcc -lpq -L/usr/lib -o knb knb.o database.o book.o -lpq -lm
+
+k2m: k2m.o database.o book.o
+	gcc -lpq -L/usr/lib -o k2m k2m.o database.o book.o -lpq -lm
+
+k2d: k2d.o database.o book.o
+	gcc -lpq -L/usr/lib -o k2d k2d.o database.o book.o -lpq -lm
 	
 k2z.o: k2z.c board.h state.h
 	gcc -I/usr/include/postgresql -c -O3 k2z.c
@@ -35,8 +41,14 @@ k2b.o: k2b.c database.h book.h
 		
 knb.o: knb.c database.h book.h
 	gcc -I/usr/include/postgresql -c knb.c
+		
+k2m.o: k2m.c database.h book.h
+	gcc -I/usr/include/postgresql -c k2m.c
+		
+k2d.o: k2d.c database.h book.h
+	gcc -I/usr/include/postgresql -c k2d.c
 	
-all: k2z k2s k2b knb
+all: k2z k2s k2b knb k2m k2d
 
 clean: 
 	rm *.o
