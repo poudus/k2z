@@ -302,7 +302,13 @@ TRACK zemoves[1024];
 	{
 		eval_orientation(board, state, orientation, lambda_decay, wpegs, wlinks, wzeta, true);
 		int nb_moves = state_moves(board, state, orientation, opponent_decay, &zemoves[0]);
-		sid = zemoves[rand() % max_moves].idx;
+        while (sid < 0)
+        {
+            sid = zemoves[rand() % max_moves].idx;
+            if (find_move(state, sid)) sid = -1;
+        }
+        
+        
 	}
 	else if (depth >= 1)
 	{

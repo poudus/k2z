@@ -21,7 +21,7 @@ char	buffer_error[512], database_name[32], flipped_moves[128], root[128], buf[12
 PGconn *pgConn = NULL;
 int	size = 12, min_count = 10, depth = 2;
 double min_elo_sum = 0.0;
-BOOK_MOVE bmoves[16000];
+BOOK_MOVE bmoves[32000];
 
 	if (argc > 1 && strlen(argv[1]) == 5)
 	{
