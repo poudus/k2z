@@ -32,6 +32,9 @@ database.o: database.c database.h
 	
 book.o: book.c book.h database.h
 	gcc -I/usr/include/postgresql -c -O3 book.c
+	
+mcts.o: mcts.c board.h state.h
+	gcc -I/usr/include/postgresql -c -O3 mcts.c
 		
 k2s.o: k2s.c database.h
 	gcc -I/usr/include/postgresql -c k2s.c
