@@ -83,3 +83,6 @@ bool winning_field(FIELD *pfield);
 bool empty_field(FIELD *pfield);
 char* state_signature(BOARD *board, STATE *state, char *signature);
 bool find_move(STATE *state, unsigned short sid);
+
+double eval_orientation(BOARD *board, STATE *state, char orientation, double lambda_decay, double wpegs, double wlinks, double wzeta, bool btracks);
+

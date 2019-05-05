@@ -26,7 +26,20 @@ draw int not null,
 rating numeric(6,2) not null,
 lambda_decay numeric(6,2) not null,
 opp_decay numeric(6,2) not null,
+spread numeric(6,2) not null,
+zeta numeric(6,2) not null,
 max_moves int not null,
 depth int not null
+);
+
+create table k2s.mcts (
+id int primary key,
+depth int not null,
+sid int not null,
+code char(4) not null,
+parent int not null,
+visits int not null,
+score numeric(6,2) not null,
+children int not null
 );
 

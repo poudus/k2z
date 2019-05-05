@@ -692,3 +692,16 @@ char query[256];
 	} else return -1;
 }
 
+//====================================================
+//	MCTS
+//====================================================
+
+bool insert_mcts_node(PGconn *pgConn, int id, int depth, int sid, const char *code, int parent, int visits, double score, int children)
+{
+	int nbc = 0;
+
+	pgExecFormat(pgConn, &nbc, "insert into k2s.mcts values (%d, %d, %d, '%s', %d, %d, %6.2f, %d)",
+				id, depth, sid, code, parent, visits, score, children);
+	return nbc == 1;
+}
+

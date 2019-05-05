@@ -58,39 +58,6 @@ struct timeval t0, t_end;
 	*/
 }
 
-// ==================
-// eval_orientation()
-// ==================
-double eval_orientation(BOARD *board, STATE *state, char orientation, double lambda_decay, double wpegs, double wlinks, double wzeta, bool btracks)
-{
-struct timeval t0, t_end, t_lambda_field;
-FIELD *player = NULL, *opponent = NULL;
-
-	if (orientation == 'H')
-	{
-		player = &state->horizontal;
-		opponent = &state->vertical;
-	}
-	else
-	{
-		player = &state->vertical;
-		opponent = &state->horizontal;
-	}
-
-	gettimeofday(&t0, NULL);
-	lambda_field(board, &board->horizontal, &state->horizontal, btracks);
-	lambda_field(board, &board->vertical, &state->vertical, btracks);
-	gettimeofday(&t_lambda_field, NULL);
-	double score = eval_state(board, player, opponent, lambda_decay, wpegs, wlinks, wzeta);
-
-	if (btracks) build_state_tracks(board, state);
-
-	gettimeofday(&t_end, NULL);
-
-	//printf("eval %c = %6.2f %%   (%6.2f ms, LF = %6.2f)\n", orientation, score, duration(&t0, &t_end), duration(&t0, &t_lambda_field));
-
-	return score;
-}
 
 // ==================
 // think()
