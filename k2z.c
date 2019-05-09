@@ -604,12 +604,12 @@ int main(int argc, char* argv[])
 int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 300, live_loop = 100, wait_live = 60;
 int hp_min = 1, hp_max = 16;
 int vp_min = 1, vp_max = 16;
-double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0;
+double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0, exploration = 0.4;
 double lambda_decay = 0.8, opponent_decay = 0.8, alpha_ratio = 0.4, random_decay = 0.1, elo_coef = 10.0;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
 BOARD board;
 TRACK zemoves[512];
-char buffer_error[512], database_name[32], mcts[128], buffer[128];
+char buffer_error[512], database_name[32], root[128], buffer[128];
 PGconn *pgConn = NULL;
 
 	/*
@@ -688,6 +688,7 @@ PGconn *pgConn = NULL;
 					else if (strcmp(paramline, "alpha-ratio") == 0) alpha_ratio = dvalue;
 					else if (strcmp(paramline, "random-decay") == 0) random_decay = dvalue;
 					else if (strcmp(paramline, "elo-coef") == 0) elo_coef = dvalue;
+					else if (strcmp(paramline, "exploration") == 0) exploration = dvalue;
 					nb_params++;
 				}
 			}
@@ -695,7 +696,7 @@ PGconn *pgConn = NULL;
 		printf("\nparameters.default file loaded, %d parameters set.\n\n", nb_params);
 	}
 	//----------
-	mcts[0] = 0;
+	root[0] = 0;
 	unsigned long ul_allocated = init_board(&board, width, height, slambda, sdirection);
 	if (ul_allocated > 0)
 	{
@@ -1174,7 +1175,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 								{
                                     int idb_move = -1;
                                     //==================
-                                    if ((move_number == 2 || move_number == 4 || move_number == 6 || move_number == 8 || move_number == 10) &&
+    if ((move_number == 2 || move_number == 4 || move_number == 6 || move_number == 8 || move_number == 10) &&
                                         (hpp.max_moves % 5 == 1 || hpp.max_moves % 5 == 2))
                                     {
                                         BOOK_MOVE bm[100];
@@ -1198,24 +1199,24 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
                                     //===================
 					if (move_number == 0)
 					{
-						if (strlen(mcts) >= 2)
+						if (strlen(root) >= 2)
 						{
-						strcpy(buffer, mcts);
+						strcpy(buffer, root);
 						buffer[2] = 0;
 						msid = parse_slot(&board, buffer);
-						printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
+						printf("root[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
 						}
 						else
 msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*offset));
 					}
 					else
 					{
-						if (strlen(mcts) > 2 * move_number)
+						if (strlen(root) > 2 * move_number)
 						{
-						strcpy(buffer, &mcts[2 * move_number]);
+						strcpy(buffer, &root[2 * move_number]);
 						buffer[2] = 0;
 						msid = parse_slot(&board, buffer);
-						printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
+						printf("root[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
 						}
 					else if (idb_move >= 0)
                                     {
@@ -1268,12 +1269,12 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 					}
 					else
 					{
-						if (strlen(mcts) > 2 * move_number)
+						if (strlen(root) > 2 * move_number)
 						{
-						strcpy(buffer, &mcts[2 * move_number]);
+						strcpy(buffer, &root[2 * move_number]);
 						buffer[2] = 0;
 						msid = parse_slot(&board, buffer);
-						printf("mcts[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
+						printf("root[%d]= %3d/%s\n", move_number, msid, board.slot[msid].code);
 						}
 					else if (idb_move >= 0)
                                     {
@@ -1337,6 +1338,94 @@ if (chk_dup_move(current_game_moves, tmp, &id1, &id2))
 					printf("===========  End of Session: %d games in %.2f sec, avg = %.2f sec/game\n",
 					nb_loops, duration(&t0_session, &tend_session)/1000, 1.0*duration(&t0_session, &tend_session)/(1000.0*nb_loops));
 				}
+				else if (strcmp("mcts", action) == 0)
+				{
+                    MCTS    root_node, znode, best_child, node_2_simulate;
+                    int     mcts_root[32];
+                    if (!find_mcts_node(pgConn, 0, &root_node))
+                    {
+                        printf("ERROR: root node NOT found\n");
+                        break;
+                    }
+					int nb_mcts = 100;
+					if (strlen(parameters) > 0)
+						nb_mcts = atoi(parameters);
+					gettimeofday(&t0_session, NULL);
+                    for (int iloop = 0 ; iloop < nb_mcts ; iloop++)
+                    {
+                        memcpy(&znode, &root_node, sizeof(MCTS));
+                        printf("mcts %4d / %-4d\n", iloop, nb_mcts);
+                        //----- reset states
+                        current_state = &state_h;
+                        init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
+                        init_state(&state_v, board.horizontal.paths, board.vertical.paths, false);
+                        move_number = 0;
+                        orientation = 'H';
+                        current_game_moves[0] = 0;
+                        lambda_field(&board, &board.horizontal, &state_h.horizontal, false);
+                        lambda_field(&board, &board.vertical, &state_h.vertical, false);
+                        lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
+                        lambda_field(&board, &board.vertical, &state_v.vertical, false);
+                        //------
+                        while (best_ucb_child(pgConn, &znode, 0.3, &best_child))
+                        {
+                            mcts_root[best_child.depth] = best_child.sid;
+                            printf("best child node of %d is %d\n", znode.id, best_child.id);
+                            memcpy(&znode, &best_child, sizeof(MCTS));
+                        }
+                        printf("node %d is leaf, score = %.4f  depth = %d, %s : %s\n",
+                               znode.id, znode.score, znode.depth, znode.move, znode.code);
+                        //------
+                        for (int d = 0 ; d < znode.depth ; d++)
+                        {
+                            if (orientation == 'H')
+                            {
+                                move(&board, &state_h, &state_v, mcts_root[d], orientation);
+                                orientation = 'V';
+                                current_state = &state_v;
+                            }
+                            else
+                            {
+                                move(&board, &state_v, &state_h, mcts_root[d], orientation);
+                                orientation = 'H';
+                                current_state = &state_h;
+                            }
+                            strcat(current_game_moves, board.slot[mcts_root[d]].code);
+                            move_number++;
+                        }
+                        //------
+                        if (znode.visits == 0 && znode.depth > 0) // simulation
+                        {
+                            memcpy(&node_2_simulate, &znode, sizeof(MCTS));
+                        }
+                        else // node expansion
+                        {
+                            double od = opponent_decay;
+                            if (strlen(parameters) > 0)
+                                od = atof(parameters);
+                            int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
+                            int fchild = 0;
+                            for (int m = 0 ; m < max_moves ; m++)
+                            {
+                                sprintf(current_game_moves, "%s%s", znode.code, board.slot[zemoves[m].idx].code);
+                                int c = insert_mcts(pgConn, znode.depth+1, znode.id, zemoves[m].idx,
+                                            board.slot[zemoves[m].idx].code, current_game_moves, 0, 0.0);
+                                if (m == 0) fchild = c;
+                            }
+                            printf("node %d / %s expanded, first child = %d\n", znode.id, znode.code, fchild);
+                            find_mcts_node(pgConn, fchild, &node_2_simulate);
+                        }
+                        sleep(2);
+                        if (update_mcts(pgConn, node_2_simulate.id, (rand() % 100) / 100.0))
+                            printf("node %d updated\n", node_2_simulate.id);
+                        // call run simulation node + params hpmin-max vp-min-max_lambda
+                        // retro propagate branch
+                    }
+					// ---
+					gettimeofday(&tend_session, NULL);
+					printf("MCTS %4d in %.2f sec, avg = %.2f sec/iteration\n",
+					nb_mcts, duration(&t0_session, &tend_session)/1000, 1.0*duration(&t0_session, &tend_session)/(1000.0*nb_mcts));
+                }
 				else if (strcmp("parameter", action) == 0)
 				{
 					if (strlen(parameters) > 0)
@@ -1373,18 +1462,19 @@ if (chk_dup_move(current_game_moves, tmp, &id1, &id2))
 							else if (strcmp(parameters, "alpha-ratio") == 0) alpha_ratio = dvalue;
 							else if (strcmp(parameters, "random-decay") == 0) random_decay = dvalue;
 							else if (strcmp(parameters, "elo-coef") == 0) elo_coef = dvalue;
+							else if (strcmp(parameters, "exploration") == 0) exploration = dvalue;
 							else bp = false;
 							if (bp) printf("parameter %s set to %6.3f\n", parameters, dvalue);
 						}
 					}
 				}
-				else if (strcmp("mcts", action) == 0)
-					strcpy(mcts, parameters);
+				else if (strcmp("root", action) == 0)
+					strcpy(root, parameters);
 				else if (strcmp("parameters", action) == 0)
 				{
 					printf("lambda-decay   = %6.3f\n", lambda_decay);
 					printf("opponent-decay = %6.3f\n", opponent_decay);
-					printf("max-moves      =  %d\n", max_moves);
+					printf("max-moves      = %3d\n", max_moves);
 					printf("wpegs          = %6.3f\n", wpegs);
 					printf("wlinks         = %6.3f\n", wlinks);
 					printf("wzeta          = %6.3f\n", wzeta);
@@ -1396,10 +1486,11 @@ if (chk_dup_move(current_game_moves, tmp, &id1, &id2))
 					printf("live-timeout   = %3d\n", live_timeout);
 					printf("live-loop      = %3d\n", live_loop);
 					printf("wait-live      = %4d\n", wait_live);
-					printf("mcts           = %s\n", mcts);
+					printf("root           = %s\n", root);
 					printf("alpha-ratio    = %5.2f\n", alpha_ratio);
 					printf("random-decay   = %5.2f\n", random_decay);
 					printf("elo-coef       = %5.2f\n", elo_coef);
+					printf("exploration    = %5.2f\n", exploration);
 				}
 				else if (strcmp("position", action) == 0) //
 				{

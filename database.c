@@ -696,12 +696,114 @@ char query[256];
 //	MCTS
 //====================================================
 
-bool insert_mcts_node(PGconn *pgConn, int id, int depth, int sid, const char *code, int parent, int visits, double score, int children)
+int insert_mcts(PGconn *pgConn, int depth, int parent,
+                      int sid, const char *move, const char *code,
+                      int visits, double score)
+{
+	int nbc = 0, node_id = 0;
+    double ratio = 0.0;
+    if (visits > 0) ratio = score / visits;
+
+	if (pgBeginTransaction(pgConn))
+	{
+		node_id = pgGetSequo(pgConn, "k2s.mcts_sequo");
+		if (node_id < 0)
+		{
+			pgRollbackTransaction(pgConn);
+		}
+		else
+		{
+pgExecFormat(pgConn, &nbc, "insert into k2s.mcts values (%d, %d, %d, %d, '%s', '%s', %9.1f, %d, %6.4f)",
+				node_id, depth, parent, sid, move, code, score, visits, ratio);
+			if (nbc == 1)
+				pgCommitTransaction(pgConn);
+			else
+			{
+				pgRollbackTransaction(pgConn);
+				node_id = -1;
+			}
+		}
+	}
+	return node_id;
+}
+
+bool update_mcts(PGconn *pgConn, int id, double score)
 {
 	int nbc = 0;
 
-	pgExecFormat(pgConn, &nbc, "insert into k2s.mcts values (%d, %d, %d, '%s', %d, %d, %6.2f, %d)",
-				id, depth, sid, code, parent, visits, score, children);
+	pgExecFormat(pgConn, &nbc, "update k2s.mcts set visits = visits + 1, score = score + %4.1f where id = %d",
+				score, id);
+	pgExecFormat(pgConn, &nbc, "update k2s.mcts set ratio = visits / score where id = %d", id);
 	return nbc == 1;
+}
+
+bool best_ucb_child(PGconn *pgConn, MCTS *parent, double exploration, MCTS* best_child)
+{
+    double best_ucb = 0.0, ratio = 0.0, ucb = 0.0, score = 0.0;
+    int visits = 0, id, depth, sid;
+char query[256], move[16], code[64];
+
+	sprintf(query, "select id, ratio, score, visits, move, code, depth, sid from k2s.mcts where parent = %d", parent->id);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+        for (int n = 0 ; n < PQntuples(pgres) ; n++)
+        {
+            id = atoi(PQgetvalue(pgres, n, 0));
+            ratio = atof(PQgetvalue(pgres, n, 1));
+            score = atof(PQgetvalue(pgres, n, 2));
+            visits = atoi(PQgetvalue(pgres, n, 3));
+            strcpy(move, PQgetvalue(pgres, n, 4));
+            strcpy(code, PQgetvalue(pgres, n, 5));
+            depth = atoi(PQgetvalue(pgres, n, 6));
+            sid = atoi(PQgetvalue(pgres, n, 7));
+            
+            if (visits == 0)
+                ucb = 999.0 + (rand() % 100)/100.0;
+            else
+                ucb = ratio + exploration * sqrt(log(parent->visits/visits));
+            
+            if (ucb > best_ucb)
+            {
+                best_ucb = ucb;
+                
+                best_child->id = id;
+                best_child->sid = sid;
+                best_child->depth = depth;
+                best_child->parent = parent->id;
+                best_child->score = score;
+                best_child->visits = visits;
+                best_child->ratio = ratio;
+                strcpy(best_child->move, move);
+                strcpy(best_child->code, code);
+            }
+        }
+		PQclear(pgres);
+        return best_ucb > 0.0;
+	} else return false;
+}
+
+bool find_mcts_node(PGconn *pgConn, int id, MCTS* node)
+{
+char query[256];
+
+	sprintf(query, "select id, ratio, score, visits, move, code, depth, sid, parent from k2s.mcts where id = %d", id);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL && PQntuples(pgres) == 1)
+	{
+        node->id = id;
+        node->sid = atoi(PQgetvalue(pgres, 0, 7));
+        node->depth = atoi(PQgetvalue(pgres, 0, 6));
+        node->parent = atoi(PQgetvalue(pgres, 0, 8));
+        node->score = atof(PQgetvalue(pgres, 0, 2));
+        node->visits = atoi(PQgetvalue(pgres, 0, 3));
+        node->ratio = atof(PQgetvalue(pgres, 0, 1));
+        strcpy(node->move, PQgetvalue(pgres, 0, 4));
+        strcpy(node->code, PQgetvalue(pgres, 0, 5));
+		PQclear(pgres);
+        return true;
+	} else return false;
 }
 

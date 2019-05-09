@@ -9,6 +9,14 @@ int	pid, max_moves, depth;
 } PLAYER_PARAMETERS;
 
 
+typedef struct
+{
+	char   move[4], code[32];
+	double score, ratio;
+	int    id, depth, parent, sid, visits;
+} MCTS;
+
+
 int getldate(time_t tt);
 int getlnow();
 unsigned long long getCurrentUTS();
@@ -52,6 +60,20 @@ bool WinLive(PGconn *pgConn, int channel, char winner, char reason);
 int WaitLive(PGconn *pgConn, int channel);
 bool UpdateLiveSignature(PGconn *pgConn, int channel, char *signature);
 bool LivePlayers(PGconn *pgConn, int channel, int* hp, int* vp);
+
+// MCTS
+int insert_mcts(PGconn *pgConn, int depth, int parent,
+                      int sid, const char *move, const char *code,
+                      int visits, double score);
+
+bool update_mcts(PGconn *pgConn, int id, double score);
+
+bool best_ucb_child(PGconn *pgConn, MCTS *parent, double exploration, MCTS* best_child);
+bool find_mcts_node(PGconn *pgConn, int id, MCTS* node);
+
+
+
+
 
 
 
