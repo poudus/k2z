@@ -713,7 +713,7 @@ int insert_mcts(PGconn *pgConn, int depth, int parent,
 		}
 		else
 		{
-pgExecFormat(pgConn, &nbc, "insert into k2s.mcts values (%d, %d, %d, %d, '%s', '%s', %9.1f, %d, %6.4f)",
+pgExecFormat(pgConn, &nbc, "insert into k2s.mcts values (%d, %d, %d, %d, '%s', '%s', %.2f, %d, %.4f)",
 				node_id, depth, parent, sid, move, code, score, visits, ratio);
 			if (nbc == 1)
 				pgCommitTransaction(pgConn);
@@ -727,13 +727,12 @@ pgExecFormat(pgConn, &nbc, "insert into k2s.mcts values (%d, %d, %d, %d, '%s', '
 	return node_id;
 }
 
-bool update_mcts(PGconn *pgConn, int id, double score)
+bool update_mcts(PGconn *pgConn, int id, double score, int visits)
 {
 	int nbc = 0;
+	//printf("update_mcts node %d : score = %6.1f  visits = %3d\n", id, score, visits);
 
-	pgExecFormat(pgConn, &nbc, "update k2s.mcts set visits = visits + 1, score = score + %4.1f where id = %d",
-				score, id);
-	pgExecFormat(pgConn, &nbc, "update k2s.mcts set ratio = visits / score where id = %d", id);
+	pgExecFormat(pgConn, &nbc, "update k2s.mcts set visits = %d, score = %.2f, ratio =  %.4f where id = %d and visits = %d", visits+1, score, score/(visits+1), id, visits);
 	return nbc == 1;
 }
 
@@ -762,8 +761,12 @@ char query[256], move[16], code[64];
             if (visits == 0)
                 ucb = 999.0 + (rand() % 100)/100.0;
             else
+		{
                 ucb = ratio + exploration * sqrt(log(parent->visits/visits));
-            
+		}
+        
+		//printf("+++ ucb = %6.4f  %d / %d\n", ucb, parent->visits, visits);    
+
             if (ucb > best_ucb)
             {
                 best_ucb = ucb;

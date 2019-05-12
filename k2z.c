@@ -1340,92 +1340,132 @@ if (chk_dup_move(current_game_moves, tmp, &id1, &id2))
 				}
 				else if (strcmp("mcts", action) == 0)
 				{
-                    MCTS    root_node, znode, best_child, node_2_simulate;
-                    int     mcts_root[32];
-                    if (!find_mcts_node(pgConn, 0, &root_node))
-                    {
-                        printf("ERROR: root node NOT found\n");
-                        break;
-                    }
-					int nb_mcts = 100;
+					MCTS    root_node, znode, best_child, node_2_simulate;
+					int     mcts_root[32], mcts_node[32], nb_mcts = 100;
+
 					if (strlen(parameters) > 0)
 						nb_mcts = atoi(parameters);
 					gettimeofday(&t0_session, NULL);
-                    for (int iloop = 0 ; iloop < nb_mcts ; iloop++)
-                    {
-                        memcpy(&znode, &root_node, sizeof(MCTS));
-                        printf("mcts %4d / %-4d\n", iloop, nb_mcts);
-                        //----- reset states
-                        current_state = &state_h;
-                        init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
-                        init_state(&state_v, board.horizontal.paths, board.vertical.paths, false);
-                        move_number = 0;
-                        orientation = 'H';
-                        current_game_moves[0] = 0;
-                        lambda_field(&board, &board.horizontal, &state_h.horizontal, false);
-                        lambda_field(&board, &board.vertical, &state_h.vertical, false);
-                        lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
-                        lambda_field(&board, &board.vertical, &state_v.vertical, false);
-                        //------
-                        while (best_ucb_child(pgConn, &znode, 0.3, &best_child))
-                        {
-                            mcts_root[best_child.depth] = best_child.sid;
-                            printf("best child node of %d is %d\n", znode.id, best_child.id);
-                            memcpy(&znode, &best_child, sizeof(MCTS));
-                        }
-                        printf("node %d is leaf, score = %.4f  depth = %d, %s : %s\n",
-                               znode.id, znode.score, znode.depth, znode.move, znode.code);
-                        //------
-                        for (int d = 0 ; d < znode.depth ; d++)
-                        {
-                            if (orientation == 'H')
-                            {
-                                move(&board, &state_h, &state_v, mcts_root[d], orientation);
-                                orientation = 'V';
-                                current_state = &state_v;
-                            }
-                            else
-                            {
-                                move(&board, &state_v, &state_h, mcts_root[d], orientation);
-                                orientation = 'H';
-                                current_state = &state_h;
-                            }
-                            strcat(current_game_moves, board.slot[mcts_root[d]].code);
-                            move_number++;
-                        }
-                        //------
-                        if (znode.visits == 0 && znode.depth > 0) // simulation
-                        {
-                            memcpy(&node_2_simulate, &znode, sizeof(MCTS));
-                        }
-                        else // node expansion
-                        {
-                            double od = opponent_decay;
-                            if (strlen(parameters) > 0)
-                                od = atof(parameters);
-                            int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
-                            int fchild = 0;
-                            for (int m = 0 ; m < max_moves ; m++)
-                            {
-                                sprintf(current_game_moves, "%s%s", znode.code, board.slot[zemoves[m].idx].code);
-                                int c = insert_mcts(pgConn, znode.depth+1, znode.id, zemoves[m].idx,
-                                            board.slot[zemoves[m].idx].code, current_game_moves, 0, 0.0);
-                                if (m == 0) fchild = c;
-                            }
-                            printf("node %d / %s expanded, first child = %d\n", znode.id, znode.code, fchild);
-                            find_mcts_node(pgConn, fchild, &node_2_simulate);
-                        }
-                        sleep(2);
-                        if (update_mcts(pgConn, node_2_simulate.id, (rand() % 100) / 100.0))
-                            printf("node %d updated\n", node_2_simulate.id);
-                        // call run simulation node + params hpmin-max vp-min-max_lambda
-                        // retro propagate branch
-                    }
+
+				    for (int iloop = 0 ; iloop < nb_mcts ; iloop++)
+				    {
+					find_mcts_node(pgConn, 0, &root_node);
+				        memcpy(&znode, &root_node, sizeof(MCTS));
+if (nb_mcts < 100)
+	printf("---- mcts %4d / %-4d ----\n", iloop, nb_mcts);
+				        //----- reset states
+				        current_state = &state_h;
+				        init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
+				        init_state(&state_v, board.horizontal.paths, board.vertical.paths, false);
+				        move_number = 0;
+				        orientation = 'H';
+				        current_game_moves[0] = 0;
+				        lambda_field(&board, &board.horizontal, &state_h.horizontal, false);
+				        lambda_field(&board, &board.vertical, &state_h.vertical, false);
+				        lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
+				        lambda_field(&board, &board.vertical, &state_v.vertical, false);
+				        //------
+				        mcts_node[0] = 0;
+				        while (best_ucb_child(pgConn, &znode, exploration, &best_child))
+				        {
+				            mcts_root[best_child.depth] = best_child.sid;
+				            mcts_node[best_child.depth] = best_child.id;
+				            //printf("best child node of %d is %d\n", znode.id, best_child.id);
+				            memcpy(&znode, &best_child, sizeof(MCTS));
+				        }
+if (nb_mcts < 100)
+	printf("node %d : score = %.4f  visits = %4d  depth = %d   %s : %s\n", znode.id, znode.score, znode.visits, znode.depth, znode.move, znode.code);
+				        //--------------------------------------------------------------
+				        for (int d = 1 ; d <= znode.depth ; d++)
+				        {
+						if (orientation == 'H')
+						{
+							move(&board, &state_h, &state_v, mcts_root[d], orientation);
+							orientation = 'V';
+							current_state = &state_v;
+						}
+						else
+						{
+							move(&board, &state_v, &state_h, mcts_root[d], orientation);
+							orientation = 'H';
+							current_state = &state_h;
+						}
+						move_number++;
+						//printf("board move #%d : %3d / %s\n", move_number, mcts_root[d], board.slot[mcts_root[d]].code);
+				        }
+				        //--------------------------------------------------------------
+				        if (znode.visits == 0 && znode.depth > 0) // simulation
+				        {
+						memcpy(&node_2_simulate, &znode, sizeof(MCTS));
+						mcts_node[znode.depth] = znode.id;
+				        }
+				        else // node expansion
+				        {
+						double od = opponent_decay;
+						if (strlen(parameters) > 0)
+							od = atof(parameters);
+						eval_orientation(&board, current_state, orientation, RD3(lambda_decay, random_decay), 0.0, 0.0, 0.0, true);
+						int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
+						int fchild = 0;
+						for (int m = 0 ; m < max_moves ; m++)
+						{
+							sprintf(current_game_moves, "%s%s", znode.code, board.slot[zemoves[m].idx].code);
+							int c = insert_mcts(pgConn, znode.depth+1, znode.id, zemoves[m].idx,
+								    board.slot[zemoves[m].idx].code, current_game_moves, 0, 0.0);
+							if (m == 0) fchild = c;
+						}
+if (nb_mcts < 100)
+	printf("++++ node %d / %s expanded, first child = %d    depth = %d  visits = %d  orientation = %c\n", znode.id, znode.code, fchild, znode.depth, znode.visits, orientation);
+						mcts_node[znode.depth+1] = fchild;
+						find_mcts_node(pgConn, fchild, &node_2_simulate);
+						mcts_root[znode.depth+1] = node_2_simulate.sid;
+
+						if (orientation == 'H')
+						{
+							move(&board, &state_h, &state_v, mcts_root[znode.depth+1], orientation);
+							orientation = 'V';
+							current_state = &state_v;
+						}
+						else
+						{
+							move(&board, &state_v, &state_h, mcts_root[znode.depth+1], orientation);
+							orientation = 'H';
+							current_state = &state_h;
+						}
+						move_number++;
+						//printf("board move #%2d : %3d / %s\n", move_number, mcts_root[znode.depth+1], board.slot[mcts_root[znode.depth+1]].code);
+				        }
+				        //--------------------------------------------------------------
+				        // call run simulation node + params hpmin-max vp-min-max_lambda
+				        //--------------------------------------------------------------
+				        //sleep(1);
+					double score_simulation = eval_orientation(&board, current_state, orientation, lambda_decay, 0.0, 0.0, 0.0, false);
+if (nb_mcts < 100)
+	printf("simulate %d / %s  depth = %d  orientation = %c  score = %6.2f\n", node_2_simulate.id, node_2_simulate.code, node_2_simulate.depth, orientation, score_simulation);
+				        //--------------------------------------------------------------
+				        // retro propagate branch
+				        //--------------------------------------------------------------
+					int iddx = 0;
+					for (int dd = node_2_simulate.depth ; dd >= 0 ; dd--)
+					{
+				    		if (find_mcts_node(pgConn, mcts_node[dd], &znode))
+						{
+							if (update_mcts(pgConn, mcts_node[dd],
+								iddx % 2 == 0 ? znode.score + (100.0 - score_simulation)/100.0 : znode.score + score_simulation/100.0,
+								znode.visits)) {
+						    		//printf("node %3d updated\n", mcts_node[dd]);
+							}
+							else printf("ERROR: node %d NOT updated !!!\n", mcts_node[dd]);
+						}
+						iddx++;
+					}
+if (nb_mcts > 100 && iloop % 100 == 0 && iloop > 0) printf("---- mcts %7d / %-7d  %6.2f %%\n", iloop, nb_mcts, 100.0*iloop/nb_mcts);
+				    }
 					// ---
 					gettimeofday(&tend_session, NULL);
-					printf("MCTS %4d in %.2f sec, avg = %.2f sec/iteration\n",
+					printf("\n---- MCTS %4d in %.2f sec, avg = %.2f sec/iteration\n",
 					nb_mcts, duration(&t0_session, &tend_session)/1000, 1.0*duration(&t0_session, &tend_session)/(1000.0*nb_mcts));
-                }
+				}
 				else if (strcmp("parameter", action) == 0)
 				{
 					if (strlen(parameters) > 0)

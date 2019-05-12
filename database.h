@@ -66,7 +66,7 @@ int insert_mcts(PGconn *pgConn, int depth, int parent,
                       int sid, const char *move, const char *code,
                       int visits, double score);
 
-bool update_mcts(PGconn *pgConn, int id, double score);
+bool update_mcts(PGconn *pgConn, int id, double score, int visits);
 
 bool best_ucb_child(PGconn *pgConn, MCTS *parent, double exploration, MCTS* best_child);
 bool find_mcts_node(PGconn *pgConn, int id, MCTS* node);
