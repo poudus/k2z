@@ -76,6 +76,11 @@ unsigned long init_board(BOARD *board, int width, int height, int depth, int min
 
 void free_board(BOARD *board);
 
+
+bool FlipSize(char *x, int size);
+char Flip(int size, char c, bool f);
+char *FlipMoves(int size, char *moves, int depth, bool *hf, bool *vf);
+
 #endif
 
 

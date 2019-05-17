@@ -1236,25 +1236,38 @@ msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*o
                                     int idb_move = -1;
                                     //==================
                                     if ((move_number == 1 || move_number == 3 || move_number == 5 || move_number == 7 || move_number == 9) &&
-                                        (vpp.max_moves % 5 == 1 || vpp.max_moves % 5 == 2))
+                                        (vpp.max_moves % 5 == 1 || vpp.max_moves % 5 == 2 || vpp.max_moves % 5 == 3))
                                     {
-                                        BOOK_MOVE bm[100];
-                                        int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0], vpp.max_moves % 5 == 2);
-                                        if (nb_book_moves > 0)
-                                        {
-						int book_slot = parse_slot(&board, bm[0].move);
-						if (find_move(current_state, book_slot))
+					if (vpp.max_moves % 5 == 3)
+					{
+						MCTS child_nodes[100];
+				        	if (mcts_child_nodes(pgConn, board.width, current_game_moves, &child_nodes[0]) > 0)
 						{
-printf("!!! book_move %3d/%2s  found in #%s\n", book_slot, bm[0].move, current_game_moves);
-exit(-1);
-						}
-						else
-						{
-                                            		if (bm[0].ratio > 0.0)
-                                                		idb_move = book_slot;
-printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board.slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
-						}
-                                        }
+							idb_move = find_slot(&board, child_nodes[0].move); // move is rotated
+							//idb_move = child_nodes[0].sid;
+	printf("mcts[%d]= %3d/%2s  %5.2f %%   %d visits\n", move_number, idb_move, child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits);
+						} else printf("no mcts children for %s\n", current_game_moves);
+					}
+					else
+					{
+		                                BOOK_MOVE bm[100];
+		                                int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0], vpp.max_moves % 5 == 2);
+		                                if (nb_book_moves > 0)
+		                                {
+							int book_slot = parse_slot(&board, bm[0].move);
+							if (find_move(current_state, book_slot))
+							{
+	printf("!!! book_move %3d/%2s  found in #%s\n", book_slot, bm[0].move, current_game_moves);
+	exit(-1);
+							}
+							else
+							{
+		                                    		if (bm[0].ratio > 0.0)
+		                                        		idb_move = book_slot;
+	printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board.slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
+							}
+		                                }
+					}
                                     }
                                     //===================
 					if (move_number == 1 && alpha_ratio >= 0.2 && alpha_ratio <= 0.8)
@@ -1338,6 +1351,70 @@ if (chk_dup_move(current_game_moves, tmp, &id1, &id2))
 					printf("===========  End of Session: %d games in %.2f sec, avg = %.2f sec/game\n",
 					nb_loops, duration(&t0_session, &tend_session)/1000, 1.0*duration(&t0_session, &tend_session)/(1000.0*nb_loops));
 				}
+				else if (strcmp("nodes", action) == 0)
+				{
+					if (strlen(parameters) == 0)
+					{
+						int nb_nodes = pgGetCount(pgConn, "k2s.mcts", "");
+						int max_depth = pgGetMax(pgConn, "depth", "k2s.mcts", "");
+						int nb_visits = pgGetSum(pgConn, "visits", "k2s.mcts", "");
+						printf("depth = %d, %d nodes, %d visits\n", max_depth, nb_nodes, nb_visits);
+					}
+					else
+					{
+						MCTS znode, child_node[100];
+						int inode = 0, nb_child_nodes = 0;
+						if (parameters[0] == '.')
+						{
+							find_mcts_node(pgConn, 0, &znode);
+							nb_child_nodes = mcts_children(pgConn, 0, &child_node[0]);
+						}
+						else
+						{
+							inode = search_mcts_node(pgConn, parameters, &znode);
+							nb_child_nodes = mcts_child_nodes(pgConn, board.width, parameters, &child_node[0]);
+						}
+						printf(" inode=  %9d   %8d visits   %5.2f %%\n", znode.id, znode.visits, 100.0 * znode.ratio);
+						for (int inode = 0 ; inode < nb_child_nodes ; inode++)
+							printf("%2d:  %s    %5.2f %%   %8d\n", inode, child_node[inode].move, 100.0 * child_node[inode].ratio, child_node[inode].visits);
+					}
+				}
+				else if (strcmp("inode", action) == 0)
+				{
+					MCTS znode;
+					if (find_mcts_node(pgConn, atoi(parameters), &znode))
+						printf("depth = %d, parent = %d, %d visits   %5.2f %%  %s\n", znode.depth, znode.parent, znode.visits, 100.0*znode.ratio, znode.code);
+					else
+						printf("node %d not found\n", atoi(parameters));
+				}
+				else if (strcmp("cnode", action) == 0)
+				{
+					MCTS znode;
+					int inode = search_mcts_node(pgConn, parameters, &znode);
+					if (inode >= 0)
+						printf("node %s exists, inode = %d\n", parameters, inode);
+					else
+					{
+						char buffer_parent[32], new_move[4];
+						strcpy(buffer_parent, parameters);
+						int ndepth = strlen(parameters)/2;
+						buffer_parent[2 * ndepth - 2] = 0;
+						strcpy(new_move, &parameters[2 * ndepth - 2]);
+						int iparent = search_mcts_node(pgConn, buffer_parent, &znode);
+						if (iparent < 0)
+							printf("node %s does not exist\n", buffer_parent);
+						else
+						{
+							int nsid = find_slot(&board, new_move);
+							if (nsid >= 0)
+							{
+							int new_node = insert_mcts(pgConn, ndepth, iparent, nsid, new_move, parameters, 0, 0.0);
+							printf("node %s created, inode = %d, parent = %d  depth = %d  sid = %d\n", parameters, new_node, iparent, ndepth, nsid);
+							}
+							else printf("slot %s is invalid\n", new_move);
+						}
+					}
+				}
 				else if (strcmp("mcts", action) == 0)
 				{
 					MCTS    root_node, znode, best_child, node_2_simulate;
@@ -1368,10 +1445,28 @@ if (nb_mcts < 100)
 				        mcts_node[0] = 0;
 				        while (best_ucb_child(pgConn, &znode, exploration, &best_child))
 				        {
-				            mcts_root[best_child.depth] = best_child.sid;
-				            mcts_node[best_child.depth] = best_child.id;
-				            //printf("best child node of %d is %d\n", znode.id, best_child.id);
-				            memcpy(&znode, &best_child, sizeof(MCTS));
+						if (strlen(root) >= 2 * best_child.depth)
+						{
+							char root_node[64];
+							strcpy(root_node, &root[2 * best_child.depth - 2]);
+							root_node[2] = 0;
+							int nsid = find_slot(&board, root_node);
+							mcts_root[best_child.depth] = nsid;
+							mcts_node[best_child.depth] = find_children(pgConn, best_child.parent, nsid, &znode);
+//printf("mcts root[%d]   node = %d  sid = %d  %s\n", best_child.depth, mcts_node[best_child.depth], nsid, root_node);
+							if (nsid < 0 || mcts_node[best_child.depth] < 0)
+							{
+								mcts_root[best_child.depth] = best_child.sid;
+								mcts_node[best_child.depth] = best_child.id;
+								memcpy(&znode, &best_child, sizeof(MCTS));
+							}
+						}
+						else
+						{
+							mcts_root[best_child.depth] = best_child.sid;
+							mcts_node[best_child.depth] = best_child.id;
+							memcpy(&znode, &best_child, sizeof(MCTS));
+						}
 				        }
 if (nb_mcts < 100)
 	printf("node %d : score = %.4f  visits = %4d  depth = %d   %s : %s\n", znode.id, znode.score, znode.visits, znode.depth, znode.move, znode.code);

@@ -70,6 +70,10 @@ bool update_mcts(PGconn *pgConn, int id, double score, int visits);
 
 bool best_ucb_child(PGconn *pgConn, MCTS *parent, double exploration, MCTS* best_child);
 bool find_mcts_node(PGconn *pgConn, int id, MCTS* node);
+int mcts_child_nodes(PGconn *pgConn, int size, const char* parameters, MCTS *nodes);
+int mcts_children(PGconn *pgConn, int parent, MCTS *nodes);
+int search_mcts_node(PGconn *pgConn, const char* code, MCTS* node);
+int find_children(PGconn *pgConn, int parent, int sid, MCTS *nodes);
 
 
 

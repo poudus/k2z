@@ -36,3 +36,4 @@ insert into k2s.mcts values (15, 1, 0, 62, 'EF', 'EF', 0.0, 0, 0.0);
 insert into k2s.mcts values (16, 1, 0, 63, 'FF', 'FF', 0.0, 0, 0.0);
 
 create index idx_mcts_parent on k2s.mcts(parent);
+create index idx_mcts_code on k2s.mcts(code);

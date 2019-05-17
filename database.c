@@ -17,6 +17,7 @@
 #include <pwd.h>
 
 #include <libpq-fe.h>
+#include "board.h"
 #include "database.h"
 
 
@@ -809,4 +810,129 @@ char query[256];
         return true;
 	} else return false;
 }
+
+int search_mcts_node(PGconn *pgConn, const char* code, MCTS* node)
+{
+char query[256];
+
+	sprintf(query, "select id, ratio, score, visits, move, code, depth, sid, parent from k2s.mcts where code = '%s'", code);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL && PQntuples(pgres) == 1)
+	{
+		node->id = atoi(PQgetvalue(pgres, 0, 0));
+		node->sid = atoi(PQgetvalue(pgres, 0, 7));
+		node->depth = atoi(PQgetvalue(pgres, 0, 6));
+		node->parent = atoi(PQgetvalue(pgres, 0, 8));
+		node->score = atof(PQgetvalue(pgres, 0, 2));
+		node->visits = atoi(PQgetvalue(pgres, 0, 3));
+		node->ratio = atof(PQgetvalue(pgres, 0, 1));
+		strcpy(node->move, PQgetvalue(pgres, 0, 4));
+		strcpy(node->code, PQgetvalue(pgres, 0, 5));
+		PQclear(pgres);
+        	return node->id;
+	} else return -1;
+}
+
+/*typedef struct
+{
+	char   move[4], code[32];
+	double score, ratio;
+	int    id, depth, parent, sid, visits;
+} MCTS;
+*/
+
+int mcts_child_nodes(PGconn *pgConn, int size, const char* code, MCTS *nodes)
+{
+char query[512], key[128];
+int moves = -1, depth = strlen(code) / 2;
+bool hf, vf;
+
+	strcpy(key, code);
+	FlipMoves(size, key, depth, &hf, &vf);
+
+	sprintf(query, "select id, ratio, score, visits, move, code, depth, sid from k2s.mcts where code like '%s%%' and depth = %d order by ratio desc", key, depth+1);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		moves = PQntuples(pgres);
+		for (int n = 0 ; n < moves ; n++)
+		{
+			nodes->id = atoi(PQgetvalue(pgres, n, 0));
+			nodes->ratio = atof(PQgetvalue(pgres, n, 1));
+			nodes->score = atof(PQgetvalue(pgres, n, 2));
+			nodes->visits = atoi(PQgetvalue(pgres, n, 3));
+			strcpy(nodes->move, PQgetvalue(pgres, n, 4));
+			strcpy(nodes->code, PQgetvalue(pgres, n, 5));
+			nodes->depth = atoi(PQgetvalue(pgres, n, 6));
+			nodes->sid = atoi(PQgetvalue(pgres, n, 7));
+
+			FlipMoves(size, nodes->move, 1, &hf, &vf);
+			FlipMoves(size, nodes->code, depth + 1, &hf, &vf);
+		    
+			nodes++;
+		}
+		PQclear(pgres);
+	}
+	return moves;
+}
+
+int mcts_children(PGconn *pgConn, int parent, MCTS *nodes)
+{
+char query[256];
+int moves = -1;
+
+	sprintf(query, "select id, ratio, score, visits, move, code, depth, sid from k2s.mcts where parent = %d order by ratio desc", parent);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		moves = PQntuples(pgres);
+		for (int n = 0 ; n < moves ; n++)
+		{
+		    nodes->id = atoi(PQgetvalue(pgres, n, 0));
+		    nodes->ratio = atof(PQgetvalue(pgres, n, 1));
+		    nodes->score = atof(PQgetvalue(pgres, n, 2));
+		    nodes->visits = atoi(PQgetvalue(pgres, n, 3));
+		    strcpy(nodes->move, PQgetvalue(pgres, n, 4));
+		    strcpy(nodes->code, PQgetvalue(pgres, n, 5));
+		    nodes->depth = atoi(PQgetvalue(pgres, n, 6));
+		    nodes->sid = atoi(PQgetvalue(pgres, n, 7));
+		    
+			nodes++;
+		}
+		PQclear(pgres);
+	}
+	return moves;
+}
+
+int find_children(PGconn *pgConn, int parent, int sid, MCTS *node)
+{
+char query[256];
+int inode = -1;
+
+	sprintf(query, "select id, ratio, score, visits, move, code, depth, sid from k2s.mcts where parent = %d and sid = %d order by ratio desc", parent, sid);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		if (PQntuples(pgres) == 1)
+		{
+			node->id = atoi(PQgetvalue(pgres, 0, 0));
+			node->ratio = atof(PQgetvalue(pgres, 0, 1));
+			node->score = atof(PQgetvalue(pgres, 0, 2));
+			node->visits = atoi(PQgetvalue(pgres, 0, 3));
+			strcpy(node->move, PQgetvalue(pgres, 0, 4));
+			strcpy(node->code, PQgetvalue(pgres, 0, 5));
+			node->depth = atoi(PQgetvalue(pgres, 0, 6));
+			node->sid = atoi(PQgetvalue(pgres, 0, 7));
+
+			inode = node->id;
+		}
+		PQclear(pgres);
+	}
+	return inode;
+}
+
 

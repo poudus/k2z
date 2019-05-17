@@ -13,38 +13,6 @@
 #include "book.h"
 
 
-static char alfb[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-
-bool FlipSize(char *x, int size)
-{
-	if (*x -'A' >= size/2)
-	{
-		*x = alfb[size - *x + 'A' - 1];
-		return true;
-	} else return false;
-}
-
-char Flip(int size, char c, bool f)
-{
-	if (f) c = alfb['A' + size - c - 1];
-	return c;
-}
-
-
-char *FlipMoves(int size, char *moves, int depth, bool *hf, bool *vf)
-{
-*hf = FlipSize(&moves[0], size);
-*vf = FlipSize(&moves[1], size);
-
-	for (int d = 1 ; d < depth ; d++)
-	{
-		moves[2*d]= Flip(size, moves[2*d], *hf);
-		moves[2*d+1]= Flip(size, moves[2*d+1], *vf);
-	}
-	moves[2*depth] = 0;
-	return moves;
-}
 
 int LoadGames(PGconn *pgConn, GAME *pg)
 {
