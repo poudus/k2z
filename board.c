@@ -29,7 +29,6 @@ char Flip(int size, char c, bool f)
 	return c;
 }
 
-
 char *FlipMoves(int size, char *moves, int depth, bool *hf, bool *vf)
 {
 *hf = FlipSize(&moves[0], size);
@@ -39,6 +38,19 @@ char *FlipMoves(int size, char *moves, int depth, bool *hf, bool *vf)
 	{
 		moves[2*d]= Flip(size, moves[2*d], *hf);
 		moves[2*d+1]= Flip(size, moves[2*d+1], *vf);
+	}
+	moves[2*depth] = 0;
+	return moves;
+}
+
+char *FlipString(int size, char *moves, bool hf, bool vf)
+{
+int depth = strlen(moves) / 2;
+
+	for (int d = 0 ; d < depth ; d++)
+	{
+		moves[2*d]= Flip(size, moves[2*d], hf);
+		moves[2*d+1]= Flip(size, moves[2*d+1], vf);
 	}
 	moves[2*depth] = 0;
 	return moves;

@@ -868,8 +868,9 @@ bool hf, vf;
 			nodes->depth = atoi(PQgetvalue(pgres, n, 6));
 			nodes->sid = atoi(PQgetvalue(pgres, n, 7));
 
-			FlipMoves(size, nodes->move, 1, &hf, &vf);
-			FlipMoves(size, nodes->code, depth + 1, &hf, &vf);
+			nodes->move[0] = Flip(size, nodes->move[0], hf);
+			nodes->move[1] = Flip(size, nodes->move[1], vf);
+			FlipString(size, nodes->code, hf, vf);
 		    
 			nodes++;
 		}

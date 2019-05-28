@@ -601,10 +601,10 @@ double RD5(double dbase, double range)
 // ==========
 int main(int argc, char* argv[])
 {
-int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 300, live_loop = 100, wait_live = 60;
+int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 300, live_loop = 100, wait_live = 60, mcts_min_visits = 100;
 int hp_min = 1, hp_max = 16;
 int vp_min = 1, vp_max = 16;
-double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0, exploration = 0.4;
+double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0, exploration = 0.4, mcts_min_ratio = 0.4;
 double lambda_decay = 0.8, opponent_decay = 0.8, alpha_ratio = 0.4, random_decay = 0.1, elo_coef = 10.0;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
 BOARD board;
@@ -689,6 +689,8 @@ PGconn *pgConn = NULL;
 					else if (strcmp(paramline, "random-decay") == 0) random_decay = dvalue;
 					else if (strcmp(paramline, "elo-coef") == 0) elo_coef = dvalue;
 					else if (strcmp(paramline, "exploration") == 0) exploration = dvalue;
+                    else if (strcmp(paramline, "mcts-min-ratio") == 0) mcts_min_ratio = dvalue;
+                    else if (strcmp(paramline, "mcts-min-visits") == 0) mcts_min_visits = ivalue;
 					nb_params++;
 				}
 			}
@@ -1176,8 +1178,21 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
                                     int idb_move = -1;
                                     //==================
     if ((move_number == 2 || move_number == 4 || move_number == 6 || move_number == 8 || move_number == 10) &&
-                                        (hpp.max_moves % 5 == 1 || hpp.max_moves % 5 == 2))
+                            (hpp.max_moves % 5 == 1 || hpp.max_moves % 5 == 2 || hpp.max_moves % 5 == 3))
                                     {
+					if (hpp.max_moves % 5 == 3)
+					{
+						MCTS child_nodes[100];
+                        if (mcts_child_nodes(pgConn, board.width, current_game_moves, &child_nodes[0]) > 0)
+						{
+                        if (child_nodes[0].visits = mcts_min_visits && child_nodes[0].ratio >= mcts_min_ratio)
+							idb_move = find_slot(&board, child_nodes[0].move); // move is rotated
+							//idb_move = child_nodes[0].sid;
+	printf("mcts[%d]= %3d/%2s  %5.2f %%   %d visits\n", move_number, idb_move, child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits);
+						} else printf("no mcts children for %s\n", current_game_moves);
+					}
+					else
+					{
                                         BOOK_MOVE bm[100];
                                         int nb_book_moves = ListBookMoves(pgConn, board.width, current_game_moves, &bm[0], hpp.max_moves % 5 == 2);
                                         if (nb_book_moves > 0)
@@ -1195,6 +1210,7 @@ exit(-1);
 printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board.slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
 						}
                                         }
+                                    }
                                     }
                                     //===================
 					if (move_number == 0)
@@ -1243,7 +1259,8 @@ msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*o
 						MCTS child_nodes[100];
 				        	if (mcts_child_nodes(pgConn, board.width, current_game_moves, &child_nodes[0]) > 0)
 						{
-							idb_move = find_slot(&board, child_nodes[0].move); // move is rotated
+                        if (child_nodes[0].visits = mcts_min_visits && child_nodes[0].ratio >= mcts_min_ratio)
+                                idb_move = find_slot(&board, child_nodes[0].move); // move is rotated
 							//idb_move = child_nodes[0].sid;
 	printf("mcts[%d]= %3d/%2s  %5.2f %%   %d visits\n", move_number, idb_move, child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits);
 						} else printf("no mcts children for %s\n", current_game_moves);
@@ -1374,9 +1391,9 @@ if (chk_dup_move(current_game_moves, tmp, &id1, &id2))
 							inode = search_mcts_node(pgConn, parameters, &znode);
 							nb_child_nodes = mcts_child_nodes(pgConn, board.width, parameters, &child_node[0]);
 						}
-						printf(" inode=  %9d   %8d visits   %5.2f %%\n", znode.id, znode.visits, 100.0 * znode.ratio);
+						printf(" inode  =    %9d   %8d visits   %5.2f %%\n", znode.id, znode.visits, 100.0 * znode.ratio);
 						for (int inode = 0 ; inode < nb_child_nodes ; inode++)
-							printf("%2d:  %s    %5.2f %%   %8d\n", inode, child_node[inode].move, 100.0 * child_node[inode].ratio, child_node[inode].visits);
+printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_node[inode].move, 100.0 * child_node[inode].ratio, child_node[inode].visits);
 					}
 				}
 				else if (strcmp("inode", action) == 0)
@@ -1409,7 +1426,7 @@ if (chk_dup_move(current_game_moves, tmp, &id1, &id2))
 							if (nsid >= 0)
 							{
 							int new_node = insert_mcts(pgConn, ndepth, iparent, nsid, new_move, parameters, 0, 0.0);
-							printf("node %s created, inode = %d, parent = %d  depth = %d  sid = %d\n", parameters, new_node, iparent, ndepth, nsid);
+					printf("node %s created, inode = %d, parent = %d  depth = %d  sid = %d\n", parameters, new_node, iparent, ndepth, nsid);
 							}
 							else printf("slot %s is invalid\n", new_move);
 						}
@@ -1499,15 +1516,35 @@ if (nb_mcts < 100)
 						double od = opponent_decay;
 						if (strlen(parameters) > 0)
 							od = atof(parameters);
-						eval_orientation(&board, current_state, orientation, RD3(lambda_decay, random_decay), 0.0, 0.0, 0.0, true);
-						int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
-						int fchild = 0;
-						for (int m = 0 ; m < max_moves ; m++)
+                            eval_orientation(&board, current_state, orientation,
+                                             RD3(lambda_decay, random_decay), 0.0, 0.0, 0.0, true);
+                    int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
+						int fchild = 0, nb_new_moves = 0;
+						for (int m = 0 ; m < nb_moves && nb_new_moves < max_moves ; m++)
 						{
-							sprintf(current_game_moves, "%s%s", znode.code, board.slot[zemoves[m].idx].code);
-							int c = insert_mcts(pgConn, znode.depth+1, znode.id, zemoves[m].idx,
-								    board.slot[zemoves[m].idx].code, current_game_moves, 0, 0.0);
-							if (m == 0) fchild = c;
+bool mfound = false;
+int imov = 0;
+while (!mfound && imov < m)
+{
+if (zemoves[imov].idx == zemoves[m].idx)
+{
+printf("mcts move duplicate %d %d  %s\n", imov, m, znode.code);
+mfound = true;
+}
+imov++;
+}
+                            if (!find_move(current_state, zemoves[m].idx))
+                            //if (strstr(znode.code, board.slot[zemoves[m].idx].code) == NULL)
+                            {
+                                sprintf(current_game_moves, "%s%s", znode.code, board.slot[zemoves[m].idx].code);
+                                int c = insert_mcts(pgConn, znode.depth+1, znode.id, zemoves[m].idx,
+                                        board.slot[zemoves[m].idx].code, current_game_moves, 0, 0.0);
+                                if (fchild == 0) fchild = c;
+                                nb_new_moves++;
+                            }
+                            else
+                                printf("MCTS-ERROR: %3d/%s in node %d / %s\n",
+                                       zemoves[m].idx, board.slot[zemoves[m].idx].code, znode.id, znode.code);
 						}
 if (nb_mcts < 100)
 	printf("++++ node %d / %s expanded, first child = %d    depth = %d  visits = %d  orientation = %c\n", znode.id, znode.code, fchild, znode.depth, znode.visits, orientation);
@@ -1598,6 +1635,8 @@ if (nb_mcts > 100 && iloop % 100 == 0 && iloop > 0) printf("---- mcts %7d / %-7d
 							else if (strcmp(parameters, "random-decay") == 0) random_decay = dvalue;
 							else if (strcmp(parameters, "elo-coef") == 0) elo_coef = dvalue;
 							else if (strcmp(parameters, "exploration") == 0) exploration = dvalue;
+							else if (strcmp(parameters, "mcts-min-ratio") == 0) mcts_min_ratio = dvalue;
+							else if (strcmp(parameters, "mcts-min-visits") == 0) mcts_min_visits = ivalue;
 							else bp = false;
 							if (bp) printf("parameter %s set to %6.3f\n", parameters, dvalue);
 						}
@@ -1626,6 +1665,8 @@ if (nb_mcts > 100 && iloop % 100 == 0 && iloop > 0) printf("---- mcts %7d / %-7d
 					printf("random-decay   = %5.2f\n", random_decay);
 					printf("elo-coef       = %5.2f\n", elo_coef);
 					printf("exploration    = %5.2f\n", exploration);
+					printf("mcts-min-visits= %5d\n", mcts_min_visits);
+					printf("mcts-min-ratio = %5.2f\n", mcts_min_ratio);
 				}
 				else if (strcmp("position", action) == 0) //
 				{
