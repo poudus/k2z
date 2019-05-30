@@ -619,10 +619,10 @@ int id, sid, parent, depth, visits;
 			parent = atoi(PQgetvalue(pgres, n, 6));
 
 			if (strcmp(board->slot[sid].code, move) != 0)
-				printf("ERROR-CHK-MCTS-MOVE  node %8d  depth = %2d  parent = %8d  %6d visits  sid = %3d %s <> %s  %s\n",
+				printf("ERROR-CHK-MCTS-MOVE  node %9d  depth = %2d  parent = %9d  %8d visits  sid = %3d %s <> %s  %s\n",
 					id, depth, parent, visits, sid, move, board->slot[sid].code, code);
 			if (strncmp(board->slot[sid].code, &code[2*depth-2], 2) != 0)
-				printf("ERROR-CHK-MCTS-CODE  node %8d  depth = %2d  parent = %8d  %6d visits  sid = %3d %s <> %s  %s\n",
+				printf("ERROR-CHK-MCTS-CODE  node %9d  depth = %2d  parent = %9d  %8d visits  sid = %3d %s <> %s  %s\n",
 					id, depth, parent, visits, sid, move, board->slot[sid].code, code);
 		}
 		PQclear(pgres);
@@ -1610,12 +1610,25 @@ mfound = true;
 }
 imov++;
 }
+if (zemoves[m].idx < 0 || zemoves[m].idx >= board.slots)
+{
+	printf("MCTS-ERROR  sid = %d\n", zemoves[m].idx);
+	exit(-1);
+}
 						if (!find_move(current_state, zemoves[m].idx))
 						//if (strstr(znode.code, board.slot[zemoves[m].idx].code) == NULL)
 						{
-							sprintf(current_game_moves, "%s%s", znode.code, board.slot[zemoves[m].idx].code);
+							char strmove[8];
+							strcpy(strmove, board.slot[zemoves[m].idx].code);
+							strmove[2] = 0;
+if (strmove[0] > 'L' || strmove[0] < 'A' || strmove[1] > 'L' || strmove[1] < 'A')
+{
+	printf("MCTS-ERROR  sid = %d  %s\n", zemoves[m].idx, strmove);
+	exit(-1);
+}
+							sprintf(current_game_moves, "%s%s", znode.code, strmove);
 							int c = insert_mcts(pgConn, znode.depth+1, znode.id, zemoves[m].idx,
-								board.slot[zemoves[m].idx].code, current_game_moves, 0, 0.0);
+								strmove, current_game_moves, 0, 0.0);
 							if (fchild == 0) fchild = c;
 							nb_new_moves++;
 						}

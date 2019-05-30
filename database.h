@@ -11,7 +11,7 @@ int	pid, max_moves, depth;
 
 typedef struct
 {
-	char   move[4], code[32];
+	char   move[8], code[48];
 	double score, ratio;
 	int    id, depth, parent, sid, visits;
 } MCTS;
