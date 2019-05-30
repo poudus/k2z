@@ -733,7 +733,8 @@ bool update_mcts(PGconn *pgConn, int id, double score, int visits)
 	int nbc = 0;
 	//printf("update_mcts node %d : score = %6.1f  visits = %3d\n", id, score, visits);
 
-	pgExecFormat(pgConn, &nbc, "update k2s.mcts set visits = %d, score = %.2f, ratio =  %.4f where id = %d and visits = %d", visits+1, score, score/(visits+1), id, visits);
+	pgExecFormat(pgConn, &nbc, "update k2s.mcts set visits = %d, score = %.2f, ratio =  %.4f where id = %d and visits = %d",
+		visits+1, score, score/(visits+1), id, visits);
 	return nbc == 1;
 }
 
@@ -898,14 +899,14 @@ int moves = -1;
 		moves = PQntuples(pgres);
 		for (int n = 0 ; n < moves ; n++)
 		{
-		    nodes->id = atoi(PQgetvalue(pgres, n, 0));
-		    nodes->ratio = atof(PQgetvalue(pgres, n, 1));
-		    nodes->score = atof(PQgetvalue(pgres, n, 2));
-		    nodes->visits = atoi(PQgetvalue(pgres, n, 3));
-		    strcpy(nodes->move, PQgetvalue(pgres, n, 4));
-		    strcpy(nodes->code, PQgetvalue(pgres, n, 5));
-		    nodes->depth = atoi(PQgetvalue(pgres, n, 6));
-		    nodes->sid = atoi(PQgetvalue(pgres, n, 7));
+			nodes->id = atoi(PQgetvalue(pgres, n, 0));
+			nodes->ratio = atof(PQgetvalue(pgres, n, 1));
+			nodes->score = atof(PQgetvalue(pgres, n, 2));
+			nodes->visits = atoi(PQgetvalue(pgres, n, 3));
+			strcpy(nodes->move, PQgetvalue(pgres, n, 4));
+			strcpy(nodes->code, PQgetvalue(pgres, n, 5));
+			nodes->depth = atoi(PQgetvalue(pgres, n, 6));
+			nodes->sid = atoi(PQgetvalue(pgres, n, 7));
 		    
 			nodes++;
 		}

@@ -26,18 +26,20 @@ double elapsedTime = 0.0;
 	return elapsedTime;
 }
 
-int move(BOARD *board, STATE *state_from, STATE *state_to, unsigned short slot, char orientation)
+bool move(BOARD *board, STATE *state_from, STATE *state_to, unsigned short slot, char orientation)
 {
-struct timeval t0, t_end;
+//struct timeval t0, t_end;
 
 	if (find_move(state_from, slot))
 	{
-		printf("!!! illegal move %3d/%2s\n", slot, board->slot[slot].code);
-		exit(-1);
+		char signature[128];
+		printf("ERROR-ILLEGAL-MOVE %c %3d/%2s : %s\n", orientation, slot, board->slot[slot].code,
+			state_signature(board, state_from, signature));
+		return false;
 	}
 	else
 	{
-		gettimeofday(&t0, NULL);
+		//gettimeofday(&t0, NULL);
 		//free_state(state_to);
 		clone_state(state_from, state_to, false);
 		//printf("init.clone  %6.2f ms\n", duration(&t_init_s0, &t_clone));
@@ -47,9 +49,9 @@ struct timeval t0, t_end;
 		move.orientation = orientation;
 		move.steps = 0;
 		int complexity = state_move(board, state_to, &move);
-		gettimeofday(&t_end, NULL);
+		//gettimeofday(&t_end, NULL);
 	}
-
+	return true;
 	/*
 		printf("move %c %s  %6.2f ms  complexity = %9d   (%d+%d %6.2f%%, %d+%d %6.2f%%)\n", orientation, board->slot[slot].code,
 		duration(&t0, &t_end), complexity,
@@ -1192,7 +1194,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 								//idb_move = child_nodes[0].sid;
 								cbr = '*';
 							}
-							printf("mcts[%d]= %3d/%2s  %5.2f %%   %6d visits  [%c]\n", move_number, idb_move,
+							printf("mcts[%d]= %3d/%2s  %5.2f %%   %6d visits   [%c]\n", move_number, idb_move,
 								child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits, cbr);
 						} else printf("no mcts children for %s\n", current_game_moves);
 					}
@@ -1478,15 +1480,20 @@ if (nb_mcts < 100)
 							strcpy(root_node, &root[2 * best_child.depth - 2]);
 							root_node[2] = 0;
 							int nsid = find_slot(&board, root_node);
-							mcts_root[best_child.depth] = nsid;
-							mcts_node[best_child.depth] = find_children(pgConn, best_child.parent, nsid, &znode);
-//printf("mcts root[%d]   node = %d  sid = %d  %s\n", best_child.depth, mcts_node[best_child.depth], nsid, root_node);
-							if (nsid < 0 || mcts_node[best_child.depth] < 0)
+							if (nsid >= 0)
 							{
-								mcts_root[best_child.depth] = best_child.sid;
-								mcts_node[best_child.depth] = best_child.id;
-								memcpy(&znode, &best_child, sizeof(MCTS));
+								mcts_root[best_child.depth] = nsid;
+								mcts_node[best_child.depth] = find_children(pgConn, best_child.parent, nsid, &znode);
+	//printf("mcts root[%d]   node = %d  sid = %d  %s\n", best_child.depth, mcts_node[best_child.depth], nsid, root_node);
+								if (nsid < 0 || mcts_node[best_child.depth] < 0)
+								{
+									mcts_root[best_child.depth] = best_child.sid;
+									mcts_node[best_child.depth] = best_child.id;
+									memcpy(&znode, &best_child, sizeof(MCTS));
+								}
 							}
+							else
+								printf("MCTS-ERROR: root node %s NOT FOUND, root = %s\n", root_node, root);
 						}
 						else
 						{
@@ -1502,15 +1509,31 @@ if (nb_mcts < 100)
 				        {
 						if (orientation == 'H')
 						{
-							move(&board, &state_h, &state_v, mcts_root[d], orientation);
-							orientation = 'V';
-							current_state = &state_v;
+							if (move(&board, &state_h, &state_v, mcts_root[d], orientation))
+							{
+								orientation = 'V';
+								current_state = &state_v;
+							}
+							else
+							{
+								printf("MCTS-ERROR depth = %d/%d  H sid = %d\n", d, znode.depth, mcts_root[d]);
+								for (int ddd = 1 ; ddd <= znode.depth ; ddd++) printf("%d ", mcts_root[ddd]);
+								exit(-1);
+							}
 						}
 						else
 						{
-							move(&board, &state_v, &state_h, mcts_root[d], orientation);
-							orientation = 'H';
-							current_state = &state_h;
+							if (move(&board, &state_v, &state_h, mcts_root[d], orientation))
+							{
+								orientation = 'H';
+								current_state = &state_h;
+							}
+							else
+							{
+								printf("MCTS-ERROR depth = %d/%d  V sid = %d\n", d, znode.depth, mcts_root[d]);
+								for (int ddd = 1 ; ddd <= znode.depth ; ddd++) printf("%d ", mcts_root[ddd]);
+								exit(-1);
+							}
 						}
 						move_number++;
 						//printf("board move #%d : %3d / %s\n", move_number, mcts_root[d], board.slot[mcts_root[d]].code);
@@ -1538,7 +1561,7 @@ while (!mfound && imov < m)
 {
 if (zemoves[imov].idx == zemoves[m].idx)
 {
-printf("mcts move duplicate %d %d  %s\n", imov, m, znode.code);
+printf("MCTS-ERROR-MOVE-DUPLICATE %d/%d  %s\n", imov, m, znode.code);
 mfound = true;
 }
 imov++;
@@ -1554,7 +1577,7 @@ imov++;
 						}
 						else
 							printf("MCTS-ERROR: %3d/%s in node %d / %s\n",
-						       	zemoves[m].idx, board.slot[zemoves[m].idx].code, znode.id, znode.code);
+						       		zemoves[m].idx, board.slot[zemoves[m].idx].code, znode.id, znode.code);
 						}
 if (nb_mcts < 100)
 	printf("++++ node %d / %s expanded, first child = %d    depth = %d  visits = %d  orientation = %c\n", znode.id, znode.code, fchild, znode.depth, znode.visits, orientation);
