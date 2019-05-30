@@ -810,7 +810,7 @@ char query[256];
 			strcpy(node->code, PQgetvalue(pgres, 0, 5));
 		}
 		PQclear(pgres);
-        	return node->id;
+        	return node->id >= 0;
 	} else return false;
 }
 

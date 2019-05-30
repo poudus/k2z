@@ -598,6 +598,37 @@ double RD5(double dbase, double range)
 		return dbase - 2*range;
 }
 
+void chk_mcts_moves(PGconn *pgConn, BOARD *board)
+{
+char query[256], move[4], code[128];
+int id, sid, parent, depth, visits;
+
+	sprintf(query, "select id, depth, sid, move, code, visits, parent from k2s.mcts where id> 0 order by id");
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		for (int n = 0 ; n < PQntuples(pgres) ; n++)
+		{
+			id = atoi(PQgetvalue(pgres, n, 0));
+			depth = atoi(PQgetvalue(pgres, n, 1));
+			sid = atoi(PQgetvalue(pgres, n, 2));
+			strcpy(move, PQgetvalue(pgres, n, 3));
+			strcpy(code, PQgetvalue(pgres, n, 4));
+			visits = atoi(PQgetvalue(pgres, n, 5));
+			parent = atoi(PQgetvalue(pgres, n, 6));
+
+			if (strcmp(board->slot[sid].code, move) != 0)
+				printf("ERROR-CHK-MCTS-MOVE  node %8d  depth = %2d  parent = %8d  %6d visits  sid = %3d %s <> %s  %s\n",
+					id, depth, parent, visits, sid, move, board->slot[sid].code, code);
+			if (strncmp(board->slot[sid].code, &code[2*depth-2], 2) != 0)
+				printf("ERROR-CHK-MCTS-CODE  node %8d  depth = %2d  parent = %8d  %6d visits  sid = %3d %s <> %s  %s\n",
+					id, depth, parent, visits, sid, move, board->slot[sid].code, code);
+		}
+		PQclear(pgres);
+	}
+}
+
 // ==========
 //    main
 // ==========
@@ -1412,7 +1443,8 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 				{
 					MCTS znode;
 					if (find_mcts_node(pgConn, atoi(parameters), &znode))
-						printf("depth = %d, parent = %d, %d visits   %5.2f %%  %s\n", znode.depth, znode.parent, znode.visits, 100.0*znode.ratio, znode.code);
+						printf("depth = %d, parent = %d, %d visits   %5.2f %%   %3d/%s  %s\n",
+							znode.depth, znode.parent, znode.visits, 100.0*znode.ratio, znode.sid, znode.move, znode.code);
 					else
 						printf("node %d not found\n", atoi(parameters));
 				}
@@ -1507,6 +1539,12 @@ if (nb_mcts < 100)
 				        //--------------------------------------------------------------
 				        for (int d = 1 ; d <= znode.depth ; d++)
 				        {
+						if (strncmp(board.slot[mcts_root[d]].code, &znode.code[2*d-2], 2) != 0)
+						{
+							printf("MCTS-ERROR-DEPTH-SID d = %d  sid = %d/%s  %s\n",
+								d, mcts_root[d], board.slot[mcts_root[d]].code, znode.code);
+							exit(-1);
+						}
 						if (orientation == 'H')
 						{
 							if (move(&board, &state_h, &state_v, mcts_root[d], orientation))
@@ -1517,6 +1555,9 @@ if (nb_mcts < 100)
 							else
 							{
 								printf("MCTS-ERROR depth = %d/%d  H sid = %d\n", d, znode.depth, mcts_root[d]);
+								printf("nodes\n");
+								for (int ddd = 1 ; ddd <= znode.depth ; ddd++) printf("%d ", mcts_node[ddd]);
+								printf("slots\n");
 								for (int ddd = 1 ; ddd <= znode.depth ; ddd++) printf("%d ", mcts_root[ddd]);
 								exit(-1);
 							}
@@ -1531,6 +1572,9 @@ if (nb_mcts < 100)
 							else
 							{
 								printf("MCTS-ERROR depth = %d/%d  V sid = %d\n", d, znode.depth, mcts_root[d]);
+								printf("nodes\n");
+								for (int ddd = 1 ; ddd <= znode.depth ; ddd++) printf("%d ", mcts_node[ddd]);
+								printf("slots\n");
 								for (int ddd = 1 ; ddd <= znode.depth ; ddd++) printf("%d ", mcts_root[ddd]);
 								exit(-1);
 							}
@@ -1630,6 +1674,10 @@ if (nb_mcts > 100 && iloop % 100 == 0 && iloop > 0) printf("---- mcts %7d / %-7d
 					gettimeofday(&tend_session, NULL);
 					printf("\n---- MCTS %4d in %.2f sec, avg = %.2f sec/iteration\n",
 					nb_mcts, duration(&t0_session, &tend_session)/1000, 1.0*duration(&t0_session, &tend_session)/(1000.0*nb_mcts));
+				}
+				else if (strcmp("chkmcts", action) == 0)
+				{
+					chk_mcts_moves(pgConn, &board);
 				}
 				else if (strcmp("parameter", action) == 0)
 				{
