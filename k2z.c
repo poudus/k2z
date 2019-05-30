@@ -1183,12 +1183,17 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 					if (hpp.max_moves % 5 == 3)
 					{
 						MCTS child_nodes[100];
-                        if (mcts_child_nodes(pgConn, board.width, current_game_moves, &child_nodes[0]) > 0)
+						char cbr = 'x';
+                        			if (mcts_child_nodes(pgConn, board.width, current_game_moves, &child_nodes[0]) > 0)
 						{
-                        if (child_nodes[0].visits = mcts_min_visits && child_nodes[0].ratio >= mcts_min_ratio)
-							idb_move = find_slot(&board, child_nodes[0].move); // move is rotated
-							//idb_move = child_nodes[0].sid;
-	printf("mcts[%d]= %3d/%2s  %5.2f %%   %d visits\n", move_number, idb_move, child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits);
+                        				if (child_nodes[0].visits >= mcts_min_visits && child_nodes[0].ratio >= mcts_min_ratio)
+							{
+								idb_move = find_slot(&board, child_nodes[0].move); // move is rotated
+								//idb_move = child_nodes[0].sid;
+								cbr = '*';
+							}
+							printf("mcts[%d]= %3d/%2s  %5.2f %%   %6d visits  [%c]\n", move_number, idb_move,
+								child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits, cbr);
 						} else printf("no mcts children for %s\n", current_game_moves);
 					}
 					else
@@ -1257,12 +1262,17 @@ msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*o
 					if (vpp.max_moves % 5 == 3)
 					{
 						MCTS child_nodes[100];
+						char cbr = 'x';
 				        	if (mcts_child_nodes(pgConn, board.width, current_game_moves, &child_nodes[0]) > 0)
 						{
-                        if (child_nodes[0].visits = mcts_min_visits && child_nodes[0].ratio >= mcts_min_ratio)
-                                idb_move = find_slot(&board, child_nodes[0].move); // move is rotated
-							//idb_move = child_nodes[0].sid;
-	printf("mcts[%d]= %3d/%2s  %5.2f %%   %d visits\n", move_number, idb_move, child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits);
+                        				if (child_nodes[0].visits >= mcts_min_visits && child_nodes[0].ratio >= mcts_min_ratio)
+							{
+                                				idb_move = find_slot(&board, child_nodes[0].move); // move is rotated
+								//idb_move = child_nodes[0].sid;
+								cbr = '*';
+							}
+							printf("mcts[%d]= %3d/%2s  %5.2f %%   %6d visits   [%c]\n", move_number, idb_move,
+								child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits, cbr);
 						} else printf("no mcts children for %s\n", current_game_moves);
 					}
 					else
@@ -1516,9 +1526,9 @@ if (nb_mcts < 100)
 						double od = opponent_decay;
 						if (strlen(parameters) > 0)
 							od = atof(parameters);
-                            eval_orientation(&board, current_state, orientation,
-                                             RD3(lambda_decay, random_decay), 0.0, 0.0, 0.0, true);
-                    int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
+                            			eval_orientation(&board, current_state, orientation,
+							RD3(lambda_decay, random_decay), 0.0, 0.0, 0.0, true);
+                    				int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
 						int fchild = 0, nb_new_moves = 0;
 						for (int m = 0 ; m < nb_moves && nb_new_moves < max_moves ; m++)
 						{
@@ -1533,18 +1543,18 @@ mfound = true;
 }
 imov++;
 }
-                            if (!find_move(current_state, zemoves[m].idx))
-                            //if (strstr(znode.code, board.slot[zemoves[m].idx].code) == NULL)
-                            {
-                                sprintf(current_game_moves, "%s%s", znode.code, board.slot[zemoves[m].idx].code);
-                                int c = insert_mcts(pgConn, znode.depth+1, znode.id, zemoves[m].idx,
-                                        board.slot[zemoves[m].idx].code, current_game_moves, 0, 0.0);
-                                if (fchild == 0) fchild = c;
-                                nb_new_moves++;
-                            }
-                            else
-                                printf("MCTS-ERROR: %3d/%s in node %d / %s\n",
-                                       zemoves[m].idx, board.slot[zemoves[m].idx].code, znode.id, znode.code);
+						if (!find_move(current_state, zemoves[m].idx))
+						//if (strstr(znode.code, board.slot[zemoves[m].idx].code) == NULL)
+						{
+							sprintf(current_game_moves, "%s%s", znode.code, board.slot[zemoves[m].idx].code);
+							int c = insert_mcts(pgConn, znode.depth+1, znode.id, zemoves[m].idx,
+								board.slot[zemoves[m].idx].code, current_game_moves, 0, 0.0);
+							if (fchild == 0) fchild = c;
+							nb_new_moves++;
+						}
+						else
+							printf("MCTS-ERROR: %3d/%s in node %d / %s\n",
+						       	zemoves[m].idx, board.slot[zemoves[m].idx].code, znode.id, znode.code);
 						}
 if (nb_mcts < 100)
 	printf("++++ node %d / %s expanded, first child = %d    depth = %d  visits = %d  orientation = %c\n", znode.id, znode.code, fchild, znode.depth, znode.visits, orientation);
@@ -1583,7 +1593,7 @@ if (nb_mcts < 100)
 				    		if (find_mcts_node(pgConn, mcts_node[dd], &znode))
 						{
 							if (update_mcts(pgConn, mcts_node[dd],
-								iddx % 2 == 0 ? znode.score + (100.0 - score_simulation)/100.0 : znode.score + score_simulation/100.0,
+				iddx % 2 == 0 ? znode.score + (100.0 - score_simulation)/100.0 : znode.score + score_simulation/100.0,
 								znode.visits)) {
 						    		//printf("node %3d updated\n", mcts_node[dd]);
 							}
