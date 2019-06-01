@@ -499,7 +499,7 @@ PLAYER_PARAMETERS hpp, vpp;
 	{
 		double expr = EloExpectedResult(hpp.rating, vpp.rating);
 		double gl = coef * (1.0 - expr);
-		printf("winner    = %3d/%7.2f     %5.2f       x = %.2f\n", hp, hpp.rating, gl, expr);
+		printf("winner    = %3d/%7.2f     %5.2f       x = %.2f       %-4d\n", hp, hpp.rating, gl, expr, (int)(hpp.rating - vpp.rating));
 		printf("loser     = %3d/%7.2f     %5.2f       x = %.2f\n", vp, vpp.rating, -gl, 1.0-expr);
 		UpdatePlayerWin(pgConn, hpp.pid, gl);
 		UpdatePlayerLoss(pgConn, vpp.pid, gl);
@@ -508,7 +508,7 @@ PLAYER_PARAMETERS hpp, vpp;
 	{
 		double expr = EloExpectedResult(vpp.rating, hpp.rating);
 		double gl = coef * (1.0 - expr);
-		printf("winner    = %3d/%7.2f     %5.2f       x = %.2f\n", vp, vpp.rating, gl, expr);
+		printf("winner    = %3d/%7.2f     %5.2f       x = %.2f       %-4d\n", vp, vpp.rating, gl, expr, (int)(vpp.rating - hpp.rating));
 		printf("loser     = %3d/%7.2f     %5.2f       x = %.2f\n", hp, hpp.rating, -gl, 1.0-expr);
 		UpdatePlayerWin(pgConn, vpp.pid, gl);
 		UpdatePlayerLoss(pgConn, hpp.pid, gl);

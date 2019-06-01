@@ -14,6 +14,8 @@
 #include "book.h"
 
 static bool gtrace_alphabeta = false;
+static int mcts_min_visits = 100;
+static double mcts_min_ratio = 0.4;
 
 double duration(struct timeval *t1, struct timeval *t2)
 {
@@ -187,11 +189,15 @@ char minmax[8], szmov[32];
 		int mm = 0, nb_moves = state_moves(board, state, move_orientation, opponent_decay, &zemoves[0]);
 		if (nb_moves < max_moves)
 		{
-			printf("TOO-FEW-MOVES !!!!!!!!!!\n");
+			printf("WARNING-TOO-FEW-MOVES !!!!!!!!!!\n");
 			mm = nb_moves;
 		} else mm = max_moves;
 		char next_orientation = 'H';
 		if (move_orientation == 'H') next_orientation = 'V';
+
+		// if-game-won-or-lost
+		// if (((orientation == 'H' || orientation == 'h') && empty_field(&new_state.horizontal)) ||
+		//			((orientation == 'V' || orientation == 'v') && empty_field(&new_state.vertical)))
 
 		if (max_player)
 		{
@@ -271,13 +277,11 @@ TRACK zemoves[1024];
 	{
 		eval_orientation(board, state, orientation, lambda_decay, wpegs, wlinks, wzeta, true);
 		int nb_moves = state_moves(board, state, orientation, opponent_decay, &zemoves[0]);
-        while (sid < 0)
-        {
-            sid = zemoves[rand() % max_moves].idx;
-            if (find_move(state, sid)) sid = -1;
-        }
-        
-        
+		while (sid < 0)
+		{
+		    sid = zemoves[rand() % max_moves].idx;
+		    if (find_move(state, sid)) sid = -1;
+		}
 	}
 	else if (depth >= 1)
 	{
@@ -442,25 +446,75 @@ BOOK_MOVE bm[100];
 					msid = find_xy(board, offset+rand()%(board->width-2*offset), offset+rand()%(board->height-2*offset));
 				else
 				{
-                                    if (move_number >= 1 && move_number <= 10 && (max_moves % 5 == 1 || max_moves % 5 == 2))
-                                    {
-                                        int nb_book_moves = ListBookMoves(pgConn, board->width, moves, &bm[0], max_moves % 5 == 2);
-                                        if (nb_book_moves > 0)
-                                        {
-						int book_slot = parse_slot(board, bm[0].move);
-						if (find_move(&my_state, book_slot))
+					if (move_number >= 1 && move_number <= 10)
+					{
+						if (max_moves % 5 == 1 || max_moves % 5 == 2)
 						{
-printf("!!! book_move %3d/%2s  found in #%s\n", book_slot, bm[0].move, moves);
-exit(-1);
-						}
-						else
-						{
-	                                		if (bm[0].ratio > 0.0)
-	                   					idb_move = book_slot;
+							int nb_book_moves = ListBookMoves(pgConn, board->width, moves, &bm[0], max_moves % 5 == 2);
+							if (nb_book_moves > 0)
+							{
+								int book_slot = parse_slot(board, bm[0].move);
+								if (find_move(&my_state, book_slot))
+								{
+printf("ERROR-GAME-LIVE : book_move %3d/%2s  found in #%s\n", book_slot, bm[0].move, moves);
+									exit(-1);
+								}
+								else
+								{
+									if (bm[0].ratio > 0.0)
+										idb_move = book_slot;
 printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board->slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
+								}
+							}
 						}
-                                        }
-                                    }
+						else if (max_moves % 5 == 3)
+						{
+							MCTS child_nodes[100];
+							char cbr = 'x';
+		                			if (mcts_child_nodes(pgConn, board->width, moves, &child_nodes[0]) > 0)
+							{
+		                				if (child_nodes[0].visits >= mcts_min_visits && child_nodes[0].ratio >= mcts_min_ratio)
+								{
+									idb_move = find_slot(board, child_nodes[0].move); // move is rotated
+									//idb_move = child_nodes[0].sid;
+									cbr = '*';
+								}
+								printf("mcts[%d]= %3d/%2s  %5.2f %%   %6d visits   [%c]\n", move_number, idb_move,
+									child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits, cbr);
+							}
+							else
+							{
+								MCTS znode;
+								char fmoves[128];
+								bool hf, vf;
+								int dd2 = strlen(moves);
+
+								strcpy(fmoves, moves);
+								FlipMoves(board->width, fmoves, dd2/2, &hf, &vf);
+								int inode = search_mcts_node(pgConn, fmoves, &znode);
+								if (inode < 0)
+								{
+									char pmoves[128];
+									strcpy(pmoves, fmoves);
+									pmoves[dd2 - 2] = 0;
+
+									inode = search_mcts_node(pgConn, pmoves, &znode);
+
+									if (inode >= 0)
+									{
+										strcpy(pmoves, &fmoves[dd2 - 2]);
+										pmoves[2] = 0;
+										int nsid = find_slot(board, pmoves);
+										if (nsid >= 0)
+										{
+					int new_node = insert_mcts(pgConn, dd2/2, inode, nsid, pmoves, fmoves, 0, 0.0);
+printf("++++ MCTS-NODE-CREATED %s  inode = %d,  parent = %d  depth = %d  sid = %d\n", fmoves, new_node, inode, dd2/2, nsid);
+										}
+									}
+								}
+							}
+						}
+					}
 					if (idb_move >= 0)
 						msid = idb_move;
 					else
@@ -634,10 +688,10 @@ int id, sid, parent, depth, visits;
 // ==========
 int main(int argc, char* argv[])
 {
-int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 300, live_loop = 100, wait_live = 60, mcts_min_visits = 100;
+int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 300, live_loop = 100, wait_live = 60;
 int hp_min = 1, hp_max = 16;
 int vp_min = 1, vp_max = 16;
-double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0, exploration = 0.4, mcts_min_ratio = 0.4;
+double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0, exploration = 0.4;
 double lambda_decay = 0.8, opponent_decay = 0.8, alpha_ratio = 0.4, random_decay = 0.1, elo_coef = 10.0;
 struct timeval t0, t_init_board, t_init_wave, t_init_s0, t_clone, t_move, t0_game, tend_game, t0_session, tend_session, t_begin, t_end;
 BOARD board;
@@ -1176,7 +1230,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 										reason = 'R';
 										end_of_game = true;
 									}
-									else if (empty_field(&state_h.horizontal))
+									else if (empty_field(&state_h.vertical))
 									{
 										printf("H win\n");
 										winner = 'H';
@@ -1194,7 +1248,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 										reason = 'R';
 										end_of_game = true;
 									}
-									else if (empty_field(&state_v.vertical))
+									else if (empty_field(&state_v.horizontal))
 									{
 										printf("V win\n");
 										winner = 'V';
@@ -1238,7 +1292,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
 						int book_slot = parse_slot(&board, bm[0].move);
 						if (find_move(current_state, book_slot))
 						{
-printf("!!! book_move %3d/%2s  found in #%s\n", book_slot, bm[0].move, current_game_moves);
+printf("ERROR-SESSION : book_move %3d/%2s  found in #%s\n", book_slot, bm[0].move, current_game_moves);
 exit(-1);
 						}
 						else
@@ -1317,14 +1371,14 @@ msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*o
 							int book_slot = parse_slot(&board, bm[0].move);
 							if (find_move(current_state, book_slot))
 							{
-	printf("!!! book_move %3d/%2s  found in #%s\n", book_slot, bm[0].move, current_game_moves);
-	exit(-1);
+printf("ERROR-SESSION : book_move %3d/%2s  found in #%s\n", book_slot, bm[0].move, current_game_moves);
+exit(-1);
 							}
 							else
 							{
 		                                    		if (bm[0].ratio > 0.0)
 		                                        		idb_move = book_slot;
-	printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board.slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
+printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot, board.slot[book_slot].code, bm[0].ratio, bm[0].win, bm[0].loss, bm[0].move);
 							}
 		                                }
 					}
@@ -1487,7 +1541,11 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 
 				    for (int iloop = 0 ; iloop < nb_mcts ; iloop++)
 				    {
-					find_mcts_node(pgConn, 0, &root_node);
+					if (!find_mcts_node(pgConn, 0, &root_node))
+					{
+						printf("MCTS-ERROR cannot find root node iloop = %d\n", iloop);
+						exit(-1);
+					}
 				        memcpy(&znode, &root_node, sizeof(MCTS));
 if (nb_mcts < 100)
 	printf("---- mcts %4d / %-4d ----\n", iloop, nb_mcts);
