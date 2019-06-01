@@ -196,12 +196,12 @@ char minmax[8], szmov[32];
 		if (move_orientation == 'H') next_orientation = 'V';
 
 		// if-game-won-or-lost
-		if (((player_orientation == 'H' || player_orientation == 'h') && empty_field(&state->horizontal)) ||
-			((player_orientation == 'V' || player_orientation == 'v') && empty_field(&state->vertical)))
-				return 0.0; // - depth;
-		else if (((player_orientation == 'H' || player_orientation == 'h') && empty_field(&state->vertical)) ||
-			((player_orientation == 'V' || player_orientation == 'v') && empty_field(&state->horizontal)))
-				return 100.0; // + depth;
+		if (((player_orientation == 'H' || player_orientation == 'h') && winning_field(&state->horizontal)) ||
+			((player_orientation == 'V' || player_orientation == 'v') && winning_field(&state->vertical)))
+				return 100.0 + depth;
+		else if (((player_orientation == 'H' || player_orientation == 'h') && winning_field(&state->vertical)) ||
+			((player_orientation == 'V' || player_orientation == 'v') && winning_field(&state->horizontal)))
+				return 0.0 - depth;
 
 		if (max_player)
 		{
@@ -514,8 +514,8 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 					int new_node = insert_mcts(pgConn, dd2/2, inode, nsid, pmoves, fmoves, 0, 0.0);
 printf("++++ MCTS-NODE-CREATED %s  inode = %d,  parent = %d  depth = %d  sid = %d\n", fmoves, new_node, inode, dd2/2, nsid);
 										}
-									}
-								}
+									} else printf("no mcts parent for %s\n", pmoves);
+								} else printf("no mcts children for %s, inode = %d\n", fmoves, inode);
 							}
 						}
 					}
