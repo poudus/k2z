@@ -196,8 +196,12 @@ char minmax[8], szmov[32];
 		if (move_orientation == 'H') next_orientation = 'V';
 
 		// if-game-won-or-lost
-		// if (((orientation == 'H' || orientation == 'h') && empty_field(&new_state.horizontal)) ||
-		//			((orientation == 'V' || orientation == 'v') && empty_field(&new_state.vertical)))
+		if (((player_orientation == 'H' || player_orientation == 'h') && empty_field(&state->horizontal)) ||
+			((player_orientation == 'V' || player_orientation == 'v') && empty_field(&state->vertical)))
+				return 0.0; // - depth;
+		else if (((player_orientation == 'H' || player_orientation == 'h') && empty_field(&state->vertical)) ||
+			((player_orientation == 'V' || player_orientation == 'v') && empty_field(&state->horizontal)))
+				return 100.0; // + depth;
 
 		if (max_player)
 		{
