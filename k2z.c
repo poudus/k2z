@@ -195,13 +195,16 @@ char minmax[8], szmov[32];
 		char next_orientation = 'H';
 		if (move_orientation == 'H') next_orientation = 'V';
 
+		// -------------------
 		// if-game-won-or-lost
+		// -------------------
 		if (((player_orientation == 'H' || player_orientation == 'h') && winning_field(&state->horizontal)) ||
 			((player_orientation == 'V' || player_orientation == 'v') && winning_field(&state->vertical)))
 				return 100.0 + depth;
 		else if (((player_orientation == 'H' || player_orientation == 'h') && winning_field(&state->vertical)) ||
 			((player_orientation == 'V' || player_orientation == 'v') && winning_field(&state->horizontal)))
 				return 0.0 - depth;
+		// -------------------
 
 		if (max_player)
 		{
@@ -1645,22 +1648,21 @@ if (nb_mcts < 100)
 						//printf("board move #%d : %3d / %s\n", move_number, mcts_root[d], board.slot[mcts_root[d]].code);
 				        }
 				        //--------------------------------------------------------------
-				        if (znode.visits == 0 && znode.depth > 0) // simulation
+				        if (znode.depth > 0 && ((znode.visits == 0 || znode.ratio >= 0.98) ||
+                            (znode.visits > 0 || znode.ratio <= 0.02))
+                        ) // simulation
 				        {
-						memcpy(&node_2_simulate, &znode, sizeof(MCTS));
-						mcts_node[znode.depth] = znode.id;
+                            memcpy(&node_2_simulate, &znode, sizeof(MCTS));
+                            mcts_node[znode.depth] = znode.id;
 				        }
 				        else // node expansion
 				        {
-						double od = opponent_decay;
-						if (strlen(parameters) > 0)
-							od = atof(parameters);
-                            			eval_orientation(&board, current_state, orientation,
-							RD3(lambda_decay, random_decay), 0.0, 0.0, 0.0, true);
-                    				int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
-						int fchild = 0, nb_new_moves = 0;
-						for (int m = 0 ; m < nb_moves && nb_new_moves < max_moves ; m++)
-						{
+                            double dv0 = eval_orientation(&board, current_state, orientation,
+                                                    RD3(lambda_decay, random_decay), 0.0, 0.0, 0.0, true);
+                            int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
+                            int fchild = 0, nb_new_moves = 0;
+                            for (int m = 0 ; m < nb_moves && nb_new_moves < max_moves ; m++)
+                            {
 bool mfound = false;
 int imov = 0;
 while (!mfound && imov < m)
@@ -1677,73 +1679,75 @@ if (zemoves[m].idx < 0 || zemoves[m].idx >= board.slots)
 	printf("MCTS-ERROR  sid = %d\n", zemoves[m].idx);
 	exit(-1);
 }
-						if (!find_move(current_state, zemoves[m].idx))
-						//if (strstr(znode.code, board.slot[zemoves[m].idx].code) == NULL)
-						{
-							char strmove[8];
-							strcpy(strmove, board.slot[zemoves[m].idx].code);
-							strmove[2] = 0;
+                            if (!find_move(current_state, zemoves[m].idx))
+                            //if (strstr(znode.code, board.slot[zemoves[m].idx].code) == NULL)
+                            {
+                                char strmove[8];
+                                strcpy(strmove, board.slot[zemoves[m].idx].code);
+                                strmove[2] = 0;
 if (strmove[0] > 'L' || strmove[0] < 'A' || strmove[1] > 'L' || strmove[1] < 'A')
 {
-	printf("MCTS-ERROR  sid = %d  %s\n", zemoves[m].idx, strmove);
-	exit(-1);
+    printf("MCTS-ERROR  sid = %d  %s\n", zemoves[m].idx, strmove);
+    exit(-1);
 }
-							sprintf(current_game_moves, "%s%s", znode.code, strmove);
-							int c = insert_mcts(pgConn, znode.depth+1, znode.id, zemoves[m].idx,
-								strmove, current_game_moves, 0, 0.0);
-							if (fchild == 0) fchild = c;
-							nb_new_moves++;
-						}
-						else
-							printf("MCTS-ERROR: %3d/%s in node %d / %s\n",
-						       		zemoves[m].idx, board.slot[zemoves[m].idx].code, znode.id, znode.code);
-						}
+                                sprintf(current_game_moves, "%s%s", znode.code, strmove);
+                                int c = insert_mcts(pgConn, znode.depth+1, znode.id, zemoves[m].idx,
+                                    strmove, current_game_moves, 0, 0.0);
+                                if (fchild == 0) fchild = c;
+                                nb_new_moves++;
+                            }
+                            else
+                                printf("MCTS-ERROR: %3d/%s in node %d / %s\n",
+                                        zemoves[m].idx, board.slot[zemoves[m].idx].code, znode.id, znode.code);
+                            }
 if (nb_mcts < 100)
 	printf("++++ node %d / %s expanded, first child = %d    depth = %d  visits = %d  orientation = %c\n", znode.id, znode.code, fchild, znode.depth, znode.visits, orientation);
 						mcts_node[znode.depth+1] = fchild;
 						find_mcts_node(pgConn, fchild, &node_2_simulate);
 						mcts_root[znode.depth+1] = node_2_simulate.sid;
 
-						if (orientation == 'H')
-						{
-							move(&board, &state_h, &state_v, mcts_root[znode.depth+1], orientation);
-							orientation = 'V';
-							current_state = &state_v;
-						}
-						else
-						{
-							move(&board, &state_v, &state_h, mcts_root[znode.depth+1], orientation);
-							orientation = 'H';
-							current_state = &state_h;
-						}
-						move_number++;
-						//printf("board move #%2d : %3d / %s\n", move_number, mcts_root[znode.depth+1], board.slot[mcts_root[znode.depth+1]].code);
-				        }
+                            if (orientation == 'H')
+                            {
+                                move(&board, &state_h, &state_v, mcts_root[znode.depth+1], orientation);
+                                orientation = 'V';
+                                current_state = &state_v;
+                            }
+                            else
+                            {
+                                move(&board, &state_v, &state_h, mcts_root[znode.depth+1], orientation);
+                                orientation = 'H';
+                                current_state = &state_h;
+                            }
+                            move_number++;
+                            //printf("board move #%2d : %3d / %s\n", move_number, mcts_root[znode.depth+1], board.slot[mcts_root[znode.depth+1]].code);
+				        } // end node expansion
 				        //--------------------------------------------------------------
 				        // call run simulation node + params hpmin-max vp-min-max_lambda
 				        //--------------------------------------------------------------
 				        //sleep(1);
-					double score_simulation = eval_orientation(&board, current_state, orientation, lambda_decay, 0.0, 0.0, 0.0, false);
+                        double score_simulation = eval_orientation(&board, current_state, orientation,
+                                                        lambda_decay, 0.0, 0.0, 0.0, false);
 if (nb_mcts < 100)
 	printf("simulate %d / %s  depth = %d  orientation = %c  score = %6.2f\n", node_2_simulate.id, node_2_simulate.code, node_2_simulate.depth, orientation, score_simulation);
 				        //--------------------------------------------------------------
 				        // retro propagate branch
 				        //--------------------------------------------------------------
-					int iddx = 0;
-					for (int dd = node_2_simulate.depth ; dd >= 0 ; dd--)
-					{
-				    		if (find_mcts_node(pgConn, mcts_node[dd], &znode))
-						{
-							if (update_mcts(pgConn, mcts_node[dd],
-				iddx % 2 == 0 ? znode.score + (100.0 - score_simulation)/100.0 : znode.score + score_simulation/100.0,
-								znode.visits)) {
-						    		//printf("node %3d updated\n", mcts_node[dd]);
-							}
-							else printf("ERROR: node %d NOT updated !!!\n", mcts_node[dd]);
-						}
-						iddx++;
-					}
-if (nb_mcts > 100 && iloop % 100 == 0 && iloop > 0) printf("---- mcts %7d / %-7d  %6.2f %%\n", iloop, nb_mcts, 100.0*iloop/nb_mcts);
+                        int iddx = 0;
+                        for (int dd = node_2_simulate.depth ; dd >= 0 ; dd--)
+                        {
+                                if (find_mcts_node(pgConn, mcts_node[dd], &znode))
+                                {
+                                    if (update_mcts(pgConn, mcts_node[dd],
+iddx % 2 == 0 ? znode.score + (100.0 - score_simulation)/100.0 : znode.score + score_simulation/100.0,
+                                        znode.visits)) {
+                                            //printf("node %3d updated\n", mcts_node[dd]);
+                                    }
+                                    else printf("ERROR: node %d NOT updated !!!\n", mcts_node[dd]);
+                                }
+                                iddx++;
+                        }
+if (nb_mcts > 100 && iloop % 100 == 0 && iloop > 0)
+    printf("---- mcts %7d / %-7d  %6.2f %%\n", iloop, nb_mcts, 100.0*iloop/nb_mcts);
 				    }
 					// ---
 					gettimeofday(&tend_session, NULL);
