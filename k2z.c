@@ -1537,7 +1537,10 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 						}
 					}
 				}
-				else if (strcmp("mcts", action) == 0)
+				else if (strcmp("book", action) == 0) // ZE-BOOK
+				{
+                }
+				else if (strcmp("mcts", action) == 0) // ZE-MCTS
 				{
 					MCTS    root_node, znode, best_child, node_2_simulate;
 					int     mcts_root[32], mcts_node[32], nb_mcts = 100;
