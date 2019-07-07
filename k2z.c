@@ -1537,9 +1537,44 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 						}
 					}
 				}
-				else if (strcmp("book", action) == 0) // ZE-BOOK
+				else if (strcmp("tb", action) == 0) // ZE-TB
 				{
-                }
+					if (strlen(parameters) == 7)
+					{
+						parameters[1] = 0;
+						int tb_depth = atoi(&parameters[0]);
+						parameters[4] = 0;
+						int tb_moves = atoi(&parameters[2]);
+						int tb_threshold = atoi(&parameters[5]);
+
+						printf("==== TABLE BASE [ depth = %d  moves = %d  threshold = %d ]\n", tb_depth, tb_moves, tb_threshold);
+
+						TB_NODE tbnode[100];
+						int nb_valuated = 0, nb_tb_nodes = tb_nodes(pgConn, tb_depth, &tbnode[0]);
+						printf("%d nodes\n", nb_tb_nodes);
+
+						for (int tbidx = 0 ; tbidx < nb_tb_nodes ; tbidx++)
+						{
+							if (tbnode[tbidx].eval == 0.0)
+							{
+								//----- reset states
+								current_state = &state_h;
+								init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
+								init_state(&state_v, board.horizontal.paths, board.vertical.paths, false);
+								move_number = 0;
+								orientation = 'H';
+								current_game_moves[0] = 0;
+								lambda_field(&board, &board.horizontal, &state_h.horizontal, false);
+								lambda_field(&board, &board.vertical, &state_h.vertical, false);
+								lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
+								lambda_field(&board, &board.vertical, &state_v.vertical, false);
+								//------
+								nb_valuated++;
+							}
+						}
+						printf("%d/%d nodes valuated\n", nb_valuated, nb_tb_nodes);
+					}
+                		}
 				else if (strcmp("mcts", action) == 0) // ZE-MCTS
 				{
 					MCTS    root_node, znode, best_child, node_2_simulate;

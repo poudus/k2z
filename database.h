@@ -16,6 +16,13 @@ typedef struct
 	int    id, depth, parent, sid, visits;
 } MCTS;
 
+typedef struct
+{
+	int	id;
+	double	eval, deep_eval;
+	char	code[36];
+} TB_NODE;
+
 
 int getldate(time_t tt);
 int getlnow();
@@ -74,6 +81,10 @@ int mcts_child_nodes(PGconn *pgConn, int size, const char* parameters, MCTS *nod
 int mcts_children(PGconn *pgConn, int parent, MCTS *nodes);
 int search_mcts_node(PGconn *pgConn, const char* code, MCTS* node);
 int find_children(PGconn *pgConn, int parent, int sid, MCTS *nodes);
+
+
+
+int tb_nodes(PGconn *pgConn, int depth, TB_NODE *tb_nodes);
 
 
 

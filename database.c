@@ -943,4 +943,33 @@ int inode = -1;
 	return inode;
 }
 
+//
+//	TABLE BASE
+//
+
+int tb_nodes(PGconn *pgConn, int depth, TB_NODE *tb_nodes)
+{
+char query[256];
+int nodes = -1;
+
+	sprintf(query, "select id, eval, deep_eval, code from k2s.tb where depth = %d", depth);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		nodes = PQntuples(pgres);
+		for (int n = 0 ; n < nodes ; n++)
+		{
+			tb_nodes->id = atoi(PQgetvalue(pgres, n, 0));
+			tb_nodes->eval = atof(PQgetvalue(pgres, n, 1));
+			tb_nodes->deep_eval = atof(PQgetvalue(pgres, n, 2));
+			strcpy(tb_nodes->code, PQgetvalue(pgres, n, 3));
+		    
+			tb_nodes++;
+		}
+		PQclear(pgres);
+	}
+	return nodes;
+}
+
 
