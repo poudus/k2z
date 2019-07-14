@@ -1537,21 +1537,24 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 						}
 					}
 				}
-				else if (strcmp("tb", action) == 0) // ZE-TB
+				else if (strcmp("tbq", action) == 0) // ZE-TBQ
 				{
-					if (strlen(parameters) == 7)
+				}
+				else if (strcmp("btb", action) == 0) // ZE-BTB
+				{
+					char tb_move[32];
+					double dv0 = 0.0;
+					int tb_updated = 0, tb_errors = 0, tb_depth = 0, lenp = strlen(parameters);
+					if (lenp <= 2)
 					{
-						parameters[1] = 0;
-						int tb_depth = atoi(&parameters[0]);
-						parameters[4] = 0;
-						int tb_moves = atoi(&parameters[2]);
-						int tb_threshold = atoi(&parameters[5]);
+						tb_depth = atoi(parameters);
 
-						printf("==== TABLE BASE [ depth = %d  moves = %d  threshold = %d ]\n", tb_depth, tb_moves, tb_threshold);
+						printf("==== TABLE BASE [ depth = %d ]\n", tb_depth);
 
-						TB_NODE tbnode[100];
-						int nb_valuated = 0, nb_tb_nodes = tb_nodes(pgConn, tb_depth, &tbnode[0]);
+						TB_NODE *tbnode = (TB_NODE *)malloc(1000000 * sizeof(TB_NODE));
+						int tb_slot = 0, nb_valuated = 0, nb_tb_nodes = tb_nodes(pgConn, tb_depth, &tbnode[0]);
 						printf("%d nodes\n", nb_tb_nodes);
+						gettimeofday(&t0_game, NULL);
 
 						for (int tbidx = 0 ; tbidx < nb_tb_nodes ; tbidx++)
 						{
@@ -1569,10 +1572,158 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 								lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
 								lambda_field(&board, &board.vertical, &state_v.vertical, false);
 								//------
+								for (int d = 0 ; d < tb_depth ; d++)
+								{
+									strcpy(tb_move, &tbnode[tbidx].code[2 * d]);
+									tb_move[2] = 0;
+									tb_slot = find_slot(&board, tb_move);
+									if (tb_slot < 0)
+									{
+										printf("move %s not found, depth = %d, node %d/%d\n", tb_move, d, tbidx, nb_tb_nodes);
+										exit(-1);
+									}
+									if (orientation == 'H')
+									{
+										if (move(&board, &state_h, &state_v, tb_slot, orientation))
+										{
+											orientation = 'V';
+											current_state = &state_v;
+										}
+										else
+										{
+											printf("TB-ERROR depth = %d/%d  H sid = %d\n", d, tb_depth, tb_slot);
+											exit(-1);
+										}
+									}
+									else
+									{
+										if (move(&board, &state_v, &state_h, tb_slot, orientation))
+										{
+											orientation = 'H';
+											current_state = &state_h;
+										}
+										else
+										{
+											printf("TB-ERROR depth = %d/%d  V sid = %d\n", d, tb_depth, tb_slot);
+											exit(-1);
+										}
+									}
+									move_number++;
+									//printf("board move #%d : %3d / %s\n", move_number, mcts_root[d], board.slot[mcts_root[d]].code);
+								}
+								//------
+								dv0 = 100.0 - eval_orientation(&board, current_state, orientation, RD3(lambda_decay, random_decay), 0.0, 0.0, 0.0, false);
+								if (tb_update_eval(pgConn, tbnode[tbidx].id, dv0))
+									tb_updated++;
+									//printf("id %d - %s : %.2f\n", tbnode[tbidx].id, tbnode[tbidx].code, dv0);
+								else
+									tb_errors++;
+									//printf("TB-ERROR save %d\n", tbnode[tbidx].id);
+								//int nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
+								//------
 								nb_valuated++;
 							}
+if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0)
+    printf("---- TB %7d / %-7d  %6.2f %%\n", tbidx, nb_tb_nodes, 100.0*tbidx/nb_tb_nodes);
 						}
-						printf("%d/%d nodes valuated\n", nb_valuated, nb_tb_nodes);
+						free(tbnode);
+						gettimeofday(&tend_game, NULL);
+printf("%d/%d nodes valuated, %d updated, %d errors  (%d sec)\n", nb_valuated, nb_tb_nodes, tb_updated, tb_errors, (int)duration(&t0_game, &tend_game)/1000);
+					}
+					else if (lenp >= 7)
+					{
+						char child_code[64];
+						parameters[lenp - 6] = 0;
+						tb_depth = atoi(&parameters[0]);
+						parameters[lenp - 3] = 0;
+						int tb_moves = atoi(&parameters[lenp - 5]);
+						int tb_threshold = atoi(&parameters[lenp - 2]);
+
+						printf("==== TABLE BASE [ depth = %d  moves = %d  threshold = %d ]\n", tb_depth, tb_moves, tb_threshold);
+
+						TB_NODE *tbnode = (TB_NODE *)malloc(1000000 * sizeof(TB_NODE));
+						int tb_slot = 0, tb_created = 0, tb_ignored = 0, nb_expanded = 0, nb_tb_nodes = tb_nodes(pgConn, tb_depth, &tbnode[0]);
+						printf("%d nodes\n", nb_tb_nodes);
+						gettimeofday(&t0_game, NULL);
+
+						for (int tbidx = 0 ; tbidx < nb_tb_nodes ; tbidx++)
+						{
+							if (tbnode[tbidx].eval >= tb_threshold && tbnode[tbidx].eval <= 100.0 - tb_threshold)
+							{
+								//----- reset states
+								current_state = &state_h;
+								init_state(&state_h, board.horizontal.paths, board.vertical.paths, false);
+								init_state(&state_v, board.horizontal.paths, board.vertical.paths, false);
+								move_number = 0;
+								orientation = 'H';
+								current_game_moves[0] = 0;
+								lambda_field(&board, &board.horizontal, &state_h.horizontal, false);
+								lambda_field(&board, &board.vertical, &state_h.vertical, false);
+								lambda_field(&board, &board.horizontal, &state_v.horizontal, false);
+								lambda_field(&board, &board.vertical, &state_v.vertical, false);
+								//------
+								for (int d = 0 ; d < tb_depth ; d++)
+								{
+									strcpy(tb_move, &tbnode[tbidx].code[2 * d]);
+									tb_move[2] = 0;
+									tb_slot = find_slot(&board, tb_move);
+									if (tb_slot < 0)
+									{
+										printf("move %s not found, depth = %d, node %d/%d\n", tb_move, d, tbidx, nb_tb_nodes);
+										exit(-1);
+									}
+									if (orientation == 'H')
+									{
+										if (move(&board, &state_h, &state_v, tb_slot, orientation))
+										{
+											orientation = 'V';
+											current_state = &state_v;
+										}
+										else
+										{
+											printf("TB-ERROR depth = %d/%d  H sid = %d\n", d, tb_depth, tb_slot);
+											exit(-1);
+										}
+									}
+									else
+									{
+										if (move(&board, &state_v, &state_h, tb_slot, orientation))
+										{
+											orientation = 'H';
+											current_state = &state_h;
+										}
+										else
+										{
+											printf("TB-ERROR depth = %d/%d  V sid = %d\n", d, tb_depth, tb_slot);
+											exit(-1);
+										}
+									}
+									move_number++;
+									//printf("board move #%d : %3d / %s\n", move_number, mcts_root[d], board.slot[mcts_root[d]].code);
+								}
+								//------
+								dv0 = 100.0 - eval_orientation(&board, current_state, orientation, RD3(lambda_decay, random_decay), 0.0, 0.0, 0.0, true);
+								int tb_nb_moves = state_moves(&board, current_state, orientation, opponent_decay, &zemoves[0]);
+								for (int itbm = 0 ; itbm < tb_nb_moves && itbm < tb_moves ; itbm++)
+								{
+									sprintf(child_code, "%s%s", tbnode[tbidx].code, board.slot[zemoves[itbm].idx].code);
+									if (tb_insert_node(pgConn, tb_depth + 1, tbnode[tbidx].id, board.slot[zemoves[itbm].idx].code, child_code))
+										tb_created++;
+										//printf("id %d - %s : %.2f\n", tbnode[tbidx].id, tbnode[tbidx].code, dv0);
+									else
+										tb_errors++;
+										//printf("TB-ERROR save %d\n", tbnode[tbidx].id);
+								}
+								//------
+								nb_expanded++;
+							}
+							else tb_ignored++;
+if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0)
+    printf("---- TB %7d / %-7d  %6.2f %%\n", tbidx, nb_tb_nodes, 100.0*tbidx/nb_tb_nodes);
+						}
+						free(tbnode);
+						gettimeofday(&tend_game, NULL);
+printf("%d/%d nodes expanded, %d ignored, %d created, %d errors  (%d sec)\n", nb_expanded, nb_tb_nodes, tb_ignored, tb_created, tb_errors, (int)duration(&t0_game, &tend_game)/1000);
 					}
                 		}
 				else if (strcmp("mcts", action) == 0) // ZE-MCTS

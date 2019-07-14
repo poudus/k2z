@@ -972,4 +972,37 @@ int nodes = -1;
 	return nodes;
 }
 
+bool tb_update_eval(PGconn *pgConn, int id, double eval)
+{
+	int nbc = 0;
+
+	pgExecFormat(pgConn, &nbc, "update k2s.tb set eval = %.2f where id = %d", eval, id);
+	return nbc == 1;
+}
+
+int tb_insert_node(PGconn *pgConn, int depth, int parent, const char *move, const char *code)
+{
+int nbc = 0, tb_id = -1;
+
+	if (pgBeginTransaction(pgConn))
+	{
+		tb_id = pgGetSequo(pgConn, "k2s.tb_sequo");
+		if (tb_id < 0)
+		{
+			pgRollbackTransaction(pgConn);
+		}
+		else
+		{
+			pgExecFormat(pgConn, &nbc, "insert into k2s.tb values (%d, %d, %d, '%s', '%s', 0.0, 0.0)", tb_id, depth, parent, move, code);
+			if (nbc == 1)
+				pgCommitTransaction(pgConn);
+			else
+			{
+				pgRollbackTransaction(pgConn);
+				tb_id = -2;
+			}
+		}
+	}
+	return tb_id;
+}
 
