@@ -952,7 +952,7 @@ int tb_nodes(PGconn *pgConn, int depth, TB_NODE *tb_nodes)
 char query[256];
 int nodes = -1;
 
-	sprintf(query, "select id, eval, deep_eval, code from k2s.tb where depth = %d", depth);
+	sprintf(query, "select id, eval, deep_eval, code, parent, move from k2s.tb where depth = %d order by id", depth);
 	
 	PGresult *pgres = pgQuery(pgConn, query);
 	if (pgres != NULL)
@@ -964,6 +964,8 @@ int nodes = -1;
 			tb_nodes->eval = atof(PQgetvalue(pgres, n, 1));
 			tb_nodes->deep_eval = atof(PQgetvalue(pgres, n, 2));
 			strcpy(tb_nodes->code, PQgetvalue(pgres, n, 3));
+			tb_nodes->parent = atoi(PQgetvalue(pgres, n, 4));
+			strcpy(tb_nodes->move, PQgetvalue(pgres, n, 5));
 		    
 			tb_nodes++;
 		}
@@ -972,11 +974,72 @@ int nodes = -1;
 	return nodes;
 }
 
+int tb_child_nodes(PGconn *pgConn, int parent, TB_NODE *tb_nodes)
+{
+char query[256];
+int nodes = -1;
+
+	sprintf(query, "select id, eval, deep_eval, code, parent, move from k2s.tb where parent = %d order by deep_eval desc", parent);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		nodes = PQntuples(pgres);
+		for (int n = 0 ; n < nodes ; n++)
+		{
+			tb_nodes->id = atoi(PQgetvalue(pgres, n, 0));
+			tb_nodes->eval = atof(PQgetvalue(pgres, n, 1));
+			tb_nodes->deep_eval = atof(PQgetvalue(pgres, n, 2));
+			strcpy(tb_nodes->code, PQgetvalue(pgres, n, 3));
+			tb_nodes->parent = atoi(PQgetvalue(pgres, n, 4));
+			strcpy(tb_nodes->move, PQgetvalue(pgres, n, 5));
+		    
+			tb_nodes++;
+		}
+		PQclear(pgres);
+	}
+	return nodes;
+}
+
+int tb_node(PGconn *pgConn, const char *code, TB_NODE *tb_node)
+{
+char query[256];
+
+    tb_node->id = -1;
+
+	sprintf(query, "select id, eval, deep_eval, code, parent, move from k2s.tb where depth = %d and code = '%s'",
+            (int)(strlen(code) / 2), code);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		if (PQntuples(pgres) == 1)
+		{
+			tb_node->id = atoi(PQgetvalue(pgres, 0, 0));
+			tb_node->eval = atof(PQgetvalue(pgres, 0, 1));
+			tb_node->deep_eval = atof(PQgetvalue(pgres, 0, 2));
+			strcpy(tb_node->code, code);
+			tb_node->parent = atoi(PQgetvalue(pgres, 0, 4));
+			strcpy(tb_node->move, PQgetvalue(pgres, 0, 5));
+		}
+		PQclear(pgres);
+	}
+	return tb_node->id;
+}
+
 bool tb_update_eval(PGconn *pgConn, int id, double eval)
 {
 	int nbc = 0;
 
 	pgExecFormat(pgConn, &nbc, "update k2s.tb set eval = %.2f where id = %d", eval, id);
+	return nbc == 1;
+}
+
+bool tb_update_deep_eval(PGconn *pgConn, int id, double eval)
+{
+	int nbc = 0;
+
+	pgExecFormat(pgConn, &nbc, "update k2s.tb set deep_eval = %.2f where id = %d", eval, id);
 	return nbc == 1;
 }
 
@@ -1004,5 +1067,42 @@ int nbc = 0, tb_id = -1;
 		}
 	}
 	return tb_id;
+}
+
+int tb_update_deep_evals(PGconn *pgConn, int depth)
+{
+char query[256];
+int nodes = -1, nb_updated = 0, nb_errors = 0;
+
+    TB_NODE *tb_nodes = (TB_NODE *)malloc(5000000 * sizeof(TB_NODE));
+	sprintf(query, "select parent, max(eval), max(deep_eval) from k2s.tb where depth = %d group by parent", depth+1);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		nodes = PQntuples(pgres);
+		for (int n = 0 ; n < nodes ; n++)
+		{
+			tb_nodes[n].id = atoi(PQgetvalue(pgres, n, 0));
+			tb_nodes[n].eval = atof(PQgetvalue(pgres, n, 1));
+			tb_nodes[n].deep_eval = atof(PQgetvalue(pgres, n, 2));
+			tb_nodes[n].code[0] = 0;
+		    
+			//tb_nodes++;
+		}
+		PQclear(pgres);
+	}
+	printf("updating %d deep eval nodes, depth = %d...\n", nodes, depth);
+	for (int inode = 0 ; inode < nodes ; inode++)
+    {
+        if (tb_update_deep_eval(pgConn, tb_nodes[inode].id, 100.0 - tb_nodes[inode].deep_eval))
+            nb_updated++;
+        else
+            nb_errors++;
+        if (inode % 1000 == 0) printf("---- %8d/%8d\n", inode, nodes);
+    }
+    free(tb_nodes);
+    printf("%d deep eval nodes updated, %d errors\n", nodes, nb_errors);
+    return nodes;
 }
 

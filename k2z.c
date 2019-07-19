@@ -28,6 +28,18 @@ double elapsedTime = 0.0;
 	return elapsedTime;
 }
 
+char *format_duration(char *buffer, int duration)
+{
+        if (duration < 60)
+            sprintf(buffer, "%d s", duration);
+        else if (duration < 3600)
+            sprintf(buffer, "%d m %02d s", duration/60, duration % 60);
+        else
+            sprintf(buffer, "%d h %02d m", duration / 3600, (duration / 60) % 60);
+        
+        return buffer;
+}
+
 bool move(BOARD *board, STATE *state_from, STATE *state_to, unsigned short slot, char orientation)
 {
 //struct timeval t0, t_end;
@@ -1537,28 +1549,59 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 						}
 					}
 				}
+				else if (strcmp("tbd", action) == 0) // ZE-TBD
+				{
+                    int tb_depth = atoi(parameters);
+                    tb_update_deep_evals(pgConn, tb_depth);
+				}
 				else if (strcmp("tbq", action) == 0) // ZE-TBQ
 				{
+                    TB_NODE ztbnode[64];
+                    int inode = tb_node(pgConn, parameters, &ztbnode[0]);
+                    if (inode > 0)
+                    {
+                        printf("%8d      %6.2f %%  %6.2f %%   %d / %s\n",
+                               inode, ztbnode[0].eval, ztbnode[0].deep_eval,
+                               (int)(strlen(parameters) / 2), parameters);
+                        //int nb_tb_child_nodes = tb_nodes(pgConn, (int)(strlen(parameters) / 2), &ztbnode[0]);
+                        int nb_tb_child_nodes = tb_child_nodes(pgConn, inode, &ztbnode[0]);
+                        for (int ichild = 0 ; ichild < nb_tb_child_nodes ; ichild++)
+                            printf("%8d  %s  %6.2f %%  %6.2f %%\n", ztbnode[ichild].id,
+                                   ztbnode[ichild].move,
+                                   ztbnode[ichild].eval, ztbnode[ichild].deep_eval);
+                    }
 				}
-				else if (strcmp("btb", action) == 0) // ZE-BTB
+				else if (strcmp("tbb", action) == 0) // ZE-TBB
 				{
-					char tb_move[32];
+					char tb_move[32], btbuff[256];
 					double dv0 = 0.0;
 					int tb_updated = 0, tb_errors = 0, tb_depth = 0, lenp = strlen(parameters);
+                    int tb_start = 0, tb_end = 999999999;
 					if (lenp <= 2)
 					{
 						tb_depth = atoi(parameters);
 
 						printf("==== TABLE BASE [ depth = %d ]\n", tb_depth);
 
-						TB_NODE *tbnode = (TB_NODE *)malloc(1000000 * sizeof(TB_NODE));
-						int tb_slot = 0, nb_valuated = 0, nb_tb_nodes = tb_nodes(pgConn, tb_depth, &tbnode[0]);
+						TB_NODE *tbnode = (TB_NODE *)malloc(25000000 * sizeof(TB_NODE));
+						int tb_slot = 0, nb_valuated = 0, tb_total_nodes = 0;
+                        int nb_tb_nodes = tb_nodes(pgConn, tb_depth, &tbnode[0]);
 						printf("%d nodes\n", nb_tb_nodes);
 						gettimeofday(&t0_game, NULL);
+                        if (nb_tb_nodes >= 100000)
+                        {
+                            printf("from node id : ");
+                            tb_start = atoi(fgets(btbuff, 16, stdin));
+                            printf("to node id   : ");
+                            tb_end = atoi(fgets(btbuff, 16, stdin));
+                            printf("---- valuating nodes from %d to %d\n", tb_start, tb_end);
+                            tb_total_nodes = tb_end - tb_start + 1;
+                        }
+                        else tb_total_nodes = nb_tb_nodes;
 
 						for (int tbidx = 0 ; tbidx < nb_tb_nodes ; tbidx++)
 						{
-							if (tbnode[tbidx].eval == 0.0)
+                if (tbnode[tbidx].id >= tb_start && tbnode[tbidx].id <= tb_end & tbnode[tbidx].eval == 0.0)
 							{
 								//----- reset states
 								current_state = &state_h;
@@ -1624,11 +1667,15 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 								nb_valuated++;
 							}
 if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0)
-    printf("---- TB %7d / %-7d  %6.2f %%\n", tbidx, nb_tb_nodes, 100.0*tbidx/nb_tb_nodes);
+    printf("---- TB %7d / %-7d  %6.2f %%  [ %d <= %8d <= %d]\n",
+           tbidx, tb_total_nodes, 100.0*tbidx/tb_total_nodes,
+           tb_start, tbnode[tbidx].id, tb_end);
 						}
 						free(tbnode);
 						gettimeofday(&tend_game, NULL);
-printf("%d/%d nodes valuated, %d updated, %d errors  (%d sec)\n", nb_valuated, nb_tb_nodes, tb_updated, tb_errors, (int)duration(&t0_game, &tend_game)/1000);
+                        printf("%d/%d nodes valuated, %d updated, %d errors  ( %s )\n",
+                            nb_valuated, nb_tb_nodes, tb_updated, tb_errors,
+                            format_duration(btbuff, (int)duration(&t0_game, &tend_game)/1000));
 					}
 					else if (lenp >= 7)
 					{
@@ -1641,14 +1688,26 @@ printf("%d/%d nodes valuated, %d updated, %d errors  (%d sec)\n", nb_valuated, n
 
 						printf("==== TABLE BASE [ depth = %d  moves = %d  threshold = %d ]\n", tb_depth, tb_moves, tb_threshold);
 
-						TB_NODE *tbnode = (TB_NODE *)malloc(1000000 * sizeof(TB_NODE));
-						int tb_slot = 0, tb_created = 0, tb_ignored = 0, nb_expanded = 0, nb_tb_nodes = tb_nodes(pgConn, tb_depth, &tbnode[0]);
+						TB_NODE *tbnode = (TB_NODE *)malloc(25000000 * sizeof(TB_NODE));
+						int tb_slot = 0, tb_created = 0, tb_ignored = 0, nb_expanded = 0, tb_total_nodes = 0;
+                        int nb_tb_nodes = tb_nodes(pgConn, tb_depth, &tbnode[0]);
 						printf("%d nodes\n", nb_tb_nodes);
 						gettimeofday(&t0_game, NULL);
+                        if (nb_tb_nodes >= 100000)
+                        {
+                            printf("from node id : ");
+                            tb_start = atoi(fgets(btbuff, 16, stdin));
+                            printf("to node id   : ");
+                            tb_end = atoi(fgets(btbuff, 16, stdin));
+                            printf("---- expanding nodes from %d to %d\n", tb_start, tb_end);
+                            tb_total_nodes = tb_end - tb_start + 1;
+                        }
+                        else tb_total_nodes = nb_tb_nodes;
 
 						for (int tbidx = 0 ; tbidx < nb_tb_nodes ; tbidx++)
 						{
-							if (tbnode[tbidx].eval >= tb_threshold && tbnode[tbidx].eval <= 100.0 - tb_threshold)
+							if (tbnode[tbidx].id >= tb_start && tbnode[tbidx].id <= tb_end &
+                                tbnode[tbidx].eval >= tb_threshold && tbnode[tbidx].eval <= 100.0 - tb_threshold)
 							{
 								//----- reset states
 								current_state = &state_h;
@@ -1719,13 +1778,17 @@ printf("%d/%d nodes valuated, %d updated, %d errors  (%d sec)\n", nb_valuated, n
 							}
 							else tb_ignored++;
 if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0)
-    printf("---- TB %7d / %-7d  %6.2f %%\n", tbidx, nb_tb_nodes, 100.0*tbidx/nb_tb_nodes);
+    printf("---- TB %7d / %-7d  %6.2f %%  [ %d <= %8d <= %d]\n",
+           tbidx, tb_total_nodes, 100.0*tbidx/tb_total_nodes,
+           tb_start, tbnode[tbidx].id, tb_end);
 						}
 						free(tbnode);
 						gettimeofday(&tend_game, NULL);
-printf("%d/%d nodes expanded, %d ignored, %d created, %d errors  (%d sec)\n", nb_expanded, nb_tb_nodes, tb_ignored, tb_created, tb_errors, (int)duration(&t0_game, &tend_game)/1000);
+                        printf("%d/%d nodes expanded, %d ignored, %d created, %d errors  ( %s )\n",
+                            nb_expanded, nb_tb_nodes, tb_ignored, tb_created, tb_errors,
+                            format_duration(btbuff, (int)duration(&t0_game, &tend_game)/1000));
 					}
-                		}
+                } // ========== END TABLE BASE ==========
 				else if (strcmp("mcts", action) == 0) // ZE-MCTS
 				{
 					MCTS    root_node, znode, best_child, node_2_simulate;
