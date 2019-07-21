@@ -1551,8 +1551,9 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 				}
 				else if (strcmp("tbd", action) == 0) // ZE-TBD
 				{
-                    int tb_depth = atoi(parameters);
-                    tb_update_deep_evals(pgConn, tb_depth);
+                    			int tb_depth = atoi(parameters);
+					tb_init_deep_evals(pgConn, tb_depth);
+                    			tb_update_deep_evals(pgConn, tb_depth);
 				}
 				else if (strcmp("tbq", action) == 0) // ZE-TBQ
 				{

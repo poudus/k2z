@@ -1106,3 +1106,13 @@ int nodes = -1, nb_updated = 0, nb_errors = 0;
     return nodes;
 }
 
+int tb_init_deep_evals(PGconn *pgConn, int depth)
+{
+	int nbc = 0;
+
+	pgExecFormat(pgConn, &nbc, "update k2s.tb set deep_eval = eval where depth = %d", depth);
+	return nbc;
+}
+
+
+
