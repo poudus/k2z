@@ -84,13 +84,14 @@ int find_children(PGconn *pgConn, int parent, int sid, MCTS *nodes);
 
 
 
-int tb_nodes(PGconn *pgConn, int depth, TB_NODE *tb_nodes);
+int tb_nodes(PGconn *pgConn, int depth, int min_id, int max_id, TB_NODE *tb_nodes);
 int tb_node(PGconn *pgConn, const char *code, TB_NODE *tb_node);
 bool tb_update_eval(PGconn *pgConn, int id, double eval);
 int tb_insert_node(PGconn *pgConn, int depth, int parent, const char *move, const char *code);
 int tb_update_deep_evals(PGconn *pgConn, int depth);
 int tb_init_deep_evals(PGconn *pgConn, int depth);
 int tb_child_nodes(PGconn *pgConn, int parent, TB_NODE *tb_nodes);
+int tb_count(PGconn *pgConn, int depth, int min_id, int max_id);
 
 
 

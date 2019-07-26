@@ -947,12 +947,12 @@ int inode = -1;
 //	TABLE BASE
 //
 
-int tb_nodes(PGconn *pgConn, int depth, TB_NODE *tb_nodes)
+int tb_nodes(PGconn *pgConn, int depth, int min_id, int max_id, TB_NODE *tb_nodes)
 {
 char query[256];
 int nodes = -1;
 
-	sprintf(query, "select id, eval, deep_eval, code, parent, move from k2s.tb where depth = %d order by id", depth);
+	sprintf(query, "select id, eval, deep_eval, code, parent, move from k2s.tb where depth = %d and id >= %d and id <= %d order by id", depth, min_id, max_id);
 	
 	PGresult *pgres = pgQuery(pgConn, query);
 	if (pgres != NULL)
@@ -1075,7 +1075,8 @@ char query[256];
 int nodes = -1, nb_updated = 0, nb_errors = 0;
 
     TB_NODE *tb_nodes = (TB_NODE *)malloc(5000000 * sizeof(TB_NODE));
-	sprintf(query, "select parent, max(eval), max(deep_eval) from k2s.tb where depth = %d group by parent", depth+1);
+	sprintf(query,
+            "select parent, max(eval), max(deep_eval) from k2s.tb where depth = %d group by parent", depth+1);
 	
 	PGresult *pgres = pgQuery(pgConn, query);
 	if (pgres != NULL)
@@ -1112,6 +1113,16 @@ int tb_init_deep_evals(PGconn *pgConn, int depth)
 
 	pgExecFormat(pgConn, &nbc, "update k2s.tb set deep_eval = eval where depth = %d", depth);
 	return nbc;
+}
+
+
+int tb_count(PGconn *pgConn, int depth, int min_id, int max_id)
+{
+	char where[64];
+
+    sprintf(where, "depth = %d and id >= %d and id <= %d", depth, min_id, max_id);
+    
+    return pgGetCount(pgConn, "k2s.tb", where);
 }
 
 
