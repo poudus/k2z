@@ -499,8 +499,8 @@ PLAYER_PARAMETERS hpp, vpp;
 	{
 		double expr = EloExpectedResult(hpp.rating, vpp.rating);
 		double gl = coef * (1.0 - expr);
-		printf("winner    = %3d/%7.2f     %5.2f       x = %.2f       %-4d\n", hp, hpp.rating, gl, expr, (int)(hpp.rating - vpp.rating));
-		printf("loser     = %3d/%7.2f     %5.2f       x = %.2f\n", vp, vpp.rating, -gl, 1.0-expr);
+		printf("winner    = %3d/%7.2f     %5.2f       x = %.2f       %-4d  %d/%2d\n", hp, hpp.rating, gl, expr, (int)(hpp.rating - vpp.rating), hpp.depth, hpp.max_moves);
+		printf("loser     = %3d/%7.2f     %5.2f       x = %.2f             %d/%2d\n", vp, vpp.rating, -gl, 1.0-expr, vpp.depth, vpp.max_moves);
 		UpdatePlayerWin(pgConn, hpp.pid, gl);
 		UpdatePlayerLoss(pgConn, vpp.pid, gl);
 	}
@@ -508,8 +508,8 @@ PLAYER_PARAMETERS hpp, vpp;
 	{
 		double expr = EloExpectedResult(vpp.rating, hpp.rating);
 		double gl = coef * (1.0 - expr);
-		printf("winner    = %3d/%7.2f     %5.2f       x = %.2f       %-4d\n", vp, vpp.rating, gl, expr, (int)(vpp.rating - hpp.rating));
-		printf("loser     = %3d/%7.2f     %5.2f       x = %.2f\n", hp, hpp.rating, -gl, 1.0-expr);
+		printf("winner    = %3d/%7.2f     %5.2f       x = %.2f       %-4d  %d/%2d\n", vp, vpp.rating, gl, expr, (int)(vpp.rating - hpp.rating), vpp.depth, vpp.max_moves);
+		printf("loser     = %3d/%7.2f     %5.2f       x = %.2f             %d/%2d\n", hp, hpp.rating, -gl, 1.0-expr, hpp.depth, hpp.max_moves);
 		UpdatePlayerWin(pgConn, vpp.pid, gl);
 		UpdatePlayerLoss(pgConn, hpp.pid, gl);
 	}
@@ -1001,6 +1001,33 @@ int nodes = -1;
 	return nodes;
 }
 
+int tb_code_child_nodes(PGconn *pgConn, const char *code, int depth, TB_NODE *tb_nodes)
+{
+char query[256];
+int nodes = -1;
+
+	sprintf(query, "select id, eval, deep_eval, code, parent, move from k2s.tb where depth = %d and code like '%s%%' order by deep_eval desc", depth+1, code);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		nodes = PQntuples(pgres);
+		for (int n = 0 ; n < nodes ; n++)
+		{
+			tb_nodes->id = atoi(PQgetvalue(pgres, n, 0));
+			tb_nodes->eval = atof(PQgetvalue(pgres, n, 1));
+			tb_nodes->deep_eval = atof(PQgetvalue(pgres, n, 2));
+			strcpy(tb_nodes->code, PQgetvalue(pgres, n, 3));
+			tb_nodes->parent = atoi(PQgetvalue(pgres, n, 4));
+			strcpy(tb_nodes->move, PQgetvalue(pgres, n, 5));
+		    
+			tb_nodes++;
+		}
+		PQclear(pgres);
+	}
+	return nodes;
+}
+
 int tb_node(PGconn *pgConn, const char *code, TB_NODE *tb_node)
 {
 char query[256];
@@ -1123,6 +1150,30 @@ int tb_count(PGconn *pgConn, int depth, int min_id, int max_id)
     sprintf(where, "depth = %d and id >= %d and id <= %d", depth, min_id, max_id);
     
     return pgGetCount(pgConn, "k2s.tb", where);
+}
+
+bool tb_stats(PGconn *pgConn, int depth, TB_STATS *tb_stats)
+{
+char query[256];
+
+	sprintf(query, "select count(*), min(id), max(id), min(eval), max(eval) from k2s.tb where depth = %d", depth);
+	
+	PGresult *pgres = pgQuery(pgConn, query);
+	if (pgres != NULL)
+	{
+		if (PQntuples(pgres) == 1)
+		{
+			tb_stats->depth = depth;
+			tb_stats->count = atoi(PQgetvalue(pgres, 0, 0));
+			tb_stats->min_id = atoi(PQgetvalue(pgres, 0, 1));
+			tb_stats->max_id = atoi(PQgetvalue(pgres, 0, 2));
+			tb_stats->min_eval = atof(PQgetvalue(pgres, 0, 3));
+			tb_stats->max_eval = atof(PQgetvalue(pgres, 0, 4));
+		}
+		PQclear(pgres);
+		return true;
+	}
+	else return false;
 }
 
 

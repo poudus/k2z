@@ -23,6 +23,12 @@ typedef struct
 	char   code[36], move[4];
 } TB_NODE;
 
+typedef struct
+{
+	int    depth, count, min_id, max_id;
+	double min_eval, max_eval;
+} TB_STATS;
+
 
 int getldate(time_t tt);
 int getlnow();
@@ -91,7 +97,9 @@ int tb_insert_node(PGconn *pgConn, int depth, int parent, const char *move, cons
 int tb_update_deep_evals(PGconn *pgConn, int depth);
 int tb_init_deep_evals(PGconn *pgConn, int depth);
 int tb_child_nodes(PGconn *pgConn, int parent, TB_NODE *tb_nodes);
+int tb_code_child_nodes(PGconn *pgConn, const char *code, int depth, TB_NODE *tb_nodes);
 int tb_count(PGconn *pgConn, int depth, int min_id, int max_id);
+bool tb_stats(PGconn *pgConn, int depth, TB_STATS *tb_stats);
 
 
 

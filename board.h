@@ -81,6 +81,7 @@ bool FlipSize(char *x, int size);
 char Flip(int size, char c, bool f);
 char *FlipMoves(int size, char *moves, int depth, bool *hf, bool *vf);
 char *FlipString(int size, char *moves, bool hf, bool vf);
+char *FlipBuffer(int size, char *buffer, bool *hf, bool *vf);
 
 #endif
 

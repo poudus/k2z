@@ -56,6 +56,21 @@ int depth = strlen(moves) / 2;
 	return moves;
 }
 
+char *FlipBuffer(int size, char *buffer, bool *hf, bool *vf)
+{
+int depth = strlen(buffer) / 2;
+*hf = FlipSize(&buffer[0], size);
+*vf = FlipSize(&buffer[1], size);
+
+	for (int d = 1 ; d < depth ; d++)
+	{
+		buffer[2*d]= Flip(size, buffer[2*d], *hf);
+		buffer[2*d+1]= Flip(size, buffer[2*d+1], *vf);
+	}
+	buffer[2*depth] = 0;
+	return buffer;
+}
+
 unsigned int SumSlotPaths(BOARD *board, unsigned int* max)
 {
 unsigned int count = 0;

@@ -702,12 +702,44 @@ int id, sid, parent, depth, visits;
 	}
 }
 
+int find_tb_move(PGconn *pgConn, BOARD *board, const char *code, int move_number, int max_depth)
+{
+TB_NODE ztbnode[64];
+bool hf, vf;
+char tbkey[128];
+int idb_move = -1, d = strlen(code) / 2;
+
+	if (d != move_number)
+	{
+		printf("ERROR-TB %d %s\n", move_number, code);
+		exit(-1);
+	}
+	else if (move_number <= max_depth)
+	{
+		strcpy(tbkey, code);
+//printf("code  = %s  move_number = %d\n", code, move_number);
+		FlipMoves(board->width, tbkey, move_number, &hf, &vf);
+//printf("tbkey = %s  %c%c\n", tbkey, hf ? '+' : '-', vf ? '+' : '-');
+		int nb_tb_child_nodes = tb_code_child_nodes(pgConn, tbkey, move_number, &ztbnode[0]);
+		if (nb_tb_child_nodes > 0 && ztbnode[0].eval > 0.0 && ztbnode[0].deep_eval > 0.0)
+		{
+//printf("best move = %s\n", ztbnode[0].move);
+			FlipString(board->width, ztbnode[0].move, hf, vf);
+//printf("best move = %s\n", ztbnode[0].move);
+			idb_move = find_slot(board, ztbnode[0].move);
+			printf("_TB_[%d]= %3d/%2s  eval = %5.2f %%   deep_eval = %5.2f %%\n", move_number, idb_move,
+				ztbnode[0].move, ztbnode[0].eval, ztbnode[0].deep_eval);
+		} else printf("no tb children for %c%c%s/%s\n", hf ? '+' : '-', vf ? '+' : '-', tbkey, code);
+	}
+	return idb_move;
+}
+
 // ==========
 //    main
 // ==========
 int main(int argc, char* argv[])
 {
-int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 300, live_loop = 100, wait_live = 60;
+int width = 16, height = 16, max_moves = 5, slambda = 10, sdirection = -1, offset = 2, live_timeout = 300, live_loop = 100, wait_live = 60, db_tb_max_depth = 4;
 int hp_min = 1, hp_max = 16;
 int vp_min = 1, vp_max = 16;
 double wpegs = 0.0, wlinks = 0.0, wzeta = 0.0, alpha_beta_eval = 0.0, exploration = 0.4;
@@ -795,8 +827,9 @@ PGconn *pgConn = NULL;
 					else if (strcmp(paramline, "random-decay") == 0) random_decay = dvalue;
 					else if (strcmp(paramline, "elo-coef") == 0) elo_coef = dvalue;
 					else if (strcmp(paramline, "exploration") == 0) exploration = dvalue;
+					else if (strcmp(paramline, "tb-depth") == 0) db_tb_max_depth = ivalue;
                     else if (strcmp(paramline, "mcts-min-ratio") == 0) mcts_min_ratio = dvalue;
-                    else if (strcmp(paramline, "mcts-min-visits") == 0) mcts_min_visits = ivalue;
+                    else if (strcmp(paramline, "mcts-min-visits") == 0) mcts_min_visits = ivalue; // 
 					nb_params++;
 				}
 			}
@@ -1288,19 +1321,7 @@ printf("===========================  %4d / %-4d       [   %d / %6.2f    vs    %d
                                     {
 					if (hpp.max_moves % 5 == 3)
 					{
-						MCTS child_nodes[100];
-						char cbr = 'x';
-                        			if (mcts_child_nodes(pgConn, board.width, current_game_moves, &child_nodes[0]) > 0)
-						{
-                        				if (child_nodes[0].visits >= mcts_min_visits && child_nodes[0].ratio >= mcts_min_ratio)
-							{
-								idb_move = find_slot(&board, child_nodes[0].move); // move is rotated
-								//idb_move = child_nodes[0].sid;
-								cbr = '*';
-							}
-							printf("mcts[%d]= %3d/%2s  %5.2f %%   %6d visits   [%c]\n", move_number, idb_move,
-								child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits, cbr);
-						} else printf("no mcts children for %s\n", current_game_moves);
+						idb_move = find_tb_move(pgConn, &board, current_game_moves, move_number, db_tb_max_depth - hpp.depth);
 					}
 					else
 					{
@@ -1367,19 +1388,7 @@ msid = find_xy(&board, offset+rand()%(width-2*offset), offset+rand()%(height-2*o
                                     {
 					if (vpp.max_moves % 5 == 3)
 					{
-						MCTS child_nodes[100];
-						char cbr = 'x';
-				        	if (mcts_child_nodes(pgConn, board.width, current_game_moves, &child_nodes[0]) > 0)
-						{
-                        				if (child_nodes[0].visits >= mcts_min_visits && child_nodes[0].ratio >= mcts_min_ratio)
-							{
-                                				idb_move = find_slot(&board, child_nodes[0].move); // move is rotated
-								//idb_move = child_nodes[0].sid;
-								cbr = '*';
-							}
-							printf("mcts[%d]= %3d/%2s  %5.2f %%   %6d visits   [%c]\n", move_number, idb_move,
-								child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits, cbr);
-						} else printf("no mcts children for %s\n", current_game_moves);
+						idb_move = find_tb_move(pgConn, &board, current_game_moves, move_number, db_tb_max_depth - vpp.depth);
 					}
 					else
 					{
@@ -1549,28 +1558,53 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 						}
 					}
 				}
+				else if (strcmp("tbs", action) == 0) // ZE-TBS
+				{
+					TB_STATS tbs;
+                    			int tb_threshold = atoi(parameters);
+					int tb_max_depth = pgGetMax(pgConn, "depth", "k2s.tb", "");
+					int tb_up = 0, tb_down = 0;
+					char buftbs[64];
+					for (int tbsd = 1 ; tbsd <= tb_max_depth ; tbsd++)
+					{
+						sprintf(buftbs, "depth = %d and eval >= %d.0", tbsd, 100 - tb_threshold);
+						tb_up = pgGetCount(pgConn, "k2s.tb", buftbs);
+						sprintf(buftbs, "depth = %d and eval < %d.0", tbsd, tb_threshold);
+						tb_down = pgGetCount(pgConn, "k2s.tb", buftbs);
+						if (tb_stats(pgConn, tbsd, &tbs))
+							printf("%2d / %9d  [ %9d - %-9d ]  { %5.2f - %5.2f }  %7d / %5.2f %%  ( %7d + %-7d )\n",
+								tbs.depth, tbs.count, tbs.min_id, tbs.max_id, tbs.min_eval, tbs.max_eval,
+								tb_up + tb_down, 100.0 * (double)(tb_up + tb_down)/tbs.count, tb_up, tb_down);
+					}
+				}
 				else if (strcmp("tbd", action) == 0) // ZE-TBD
 				{
-                    int tb_depth = atoi(parameters);
+                    			int tb_depth = atoi(parameters);
 					tb_init_deep_evals(pgConn, tb_depth);
-                    tb_update_deep_evals(pgConn, tb_depth);
+                    			tb_update_deep_evals(pgConn, tb_depth);
 				}
 				else if (strcmp("tbq", action) == 0) // ZE-TBQ
 				{
-                    TB_NODE ztbnode[64];
-                    int inode = tb_node(pgConn, parameters, &ztbnode[0]);
-                    if (inode > 0)
-                    {
-                        printf("%8d      %6.2f %%  %6.2f %%   %d / %s\n",
-                               inode, ztbnode[0].eval, ztbnode[0].deep_eval,
-                               (int)(strlen(parameters) / 2), parameters);
-                        //int nb_tb_child_nodes = tb_nodes(pgConn, (int)(strlen(parameters) / 2), &ztbnode[0]);
-                        int nb_tb_child_nodes = tb_child_nodes(pgConn, inode, &ztbnode[0]);
-                        for (int ichild = 0 ; ichild < nb_tb_child_nodes ; ichild++)
-                            printf("%8d  %s  %6.2f %%  %6.2f %%\n", ztbnode[ichild].id,
-                                   ztbnode[ichild].move,
-                                   ztbnode[ichild].eval, ztbnode[ichild].deep_eval);
-                    }
+                    			TB_NODE ztbnode[64];
+					bool tbhf = false, tbvf = false;
+					FlipBuffer(board.width, parameters, &tbhf, &tbvf);
+					int inode = tb_node(pgConn, parameters, &ztbnode[0]);
+					if (inode > 0)
+					{
+						printf("%8d  %c%c  %6.2f %%  %6.2f %%   %d / %s\n",
+							inode, tbhf ? '+' : '-', tbvf ? '+' : '-',
+							ztbnode[0].eval, ztbnode[0].deep_eval,
+					       		(int)(strlen(parameters) / 2), parameters);
+						//int nb_tb_child_nodes = tb_nodes(pgConn, (int)(strlen(parameters) / 2), &ztbnode[0]);
+						int nb_tb_child_nodes = tb_child_nodes(pgConn, inode, &ztbnode[0]);
+						for (int ichild = 0 ; ichild < nb_tb_child_nodes ; ichild++)
+						{
+							FlipString(board.width, ztbnode[ichild].move, tbhf, tbvf);
+						    printf("%8d  %s  %6.2f %%  %6.2f %%\n", ztbnode[ichild].id,
+							   ztbnode[ichild].move,
+							   ztbnode[ichild].eval, ztbnode[ichild].deep_eval);
+						}
+					} else printf("TB node code %s not found\n", parameters);
 				}
 				else if (strcmp("tbb", action) == 0) // ZE-TBB
 				{
@@ -2046,6 +2080,7 @@ if (nb_mcts > 100 && iloop % 100 == 0 && iloop > 0)
 							else if (strcmp(parameters, "exploration") == 0) exploration = dvalue;
 							else if (strcmp(parameters, "mcts-min-ratio") == 0) mcts_min_ratio = dvalue;
 							else if (strcmp(parameters, "mcts-min-visits") == 0) mcts_min_visits = ivalue;
+							else if (strcmp(parameters, "tb-depth") == 0) db_tb_max_depth = ivalue;
 							else bp = false;
 							if (bp) printf("parameter %s set to %6.3f\n", parameters, dvalue);
 						}
@@ -2076,6 +2111,7 @@ if (nb_mcts > 100 && iloop % 100 == 0 && iloop > 0)
 					printf("exploration    = %5.2f\n", exploration);
 					printf("mcts-min-visits= %5d\n", mcts_min_visits);
 					printf("mcts-min-ratio = %5.2f\n", mcts_min_ratio);
+					printf("tb-depth       = %4d\n", db_tb_max_depth);
 				}
 				else if (strcmp("position", action) == 0) //
 				{
