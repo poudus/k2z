@@ -491,14 +491,24 @@ BOOK_MOVE bm[100];
 				if (opid == 999 && max_moves % 5 == 3 && move_number <= db_tb_max_depth)
 				{
 					TB_NODE tbn;
-					int tb_node_id = tb_node(pgConn, moves, &tbn);
-					if (tb_node_id < 0 && !out_of_tb)
+					char moves2[64];
+					bool hf, vf;
+
+					strcpy(moves2, moves);
+					FlipBuffer(board->width, moves2, &hf, &vf);
+
+					int tb_node_id = tb_node(pgConn, moves2, &tbn);
+					if (tb_node_id < 0)
 					{
-						strcpy(head_out_of_tb, moves);
-						out_of_tb = true;
-						printf("OUT-OF-TB-MOVE %d/%s  %s\n", move_number, last_move, moves);
+						if (!out_of_tb)
+						{
+							strcpy(head_out_of_tb, moves);
+							out_of_tb = true;
+							printf("OUT-OF-TB-MOVE %d/%s  %s/%c%c%s\n", move_number, last_move, moves, hf ? '+' : '-', vf ? '+' : '-', moves2);
+						}
 					}
-					else printf("-FOUND-TB-MOVE %d/%s  eval = %5.2f  deep_eval = %5.2f\n", tb_node_id, moves, tbn.eval, tbn.deep_eval);
+					else printf("-FOUND-TB-MOVE %d/%s/%c%c%s  eval = %5.2f  deep_eval = %5.2f\n", tb_node_id, moves,
+							hf ? '+' : '-', vf ? '+' : '-', moves2, tbn.eval, tbn.deep_eval);
 				}
 			}
 			//---------------
@@ -1709,7 +1719,7 @@ if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0 && tbnode[tbidx].id >= 
                         printf("%d/%d nodes valuated, %d updated, %d errors  ( %s )  ( %5.1f n/s )\n",
                             nb_valuated, nb_tb_nodes, tb_updated, tb_errors,
                             format_duration(btbuff, (int)duration(&t0_game, &tend_game)/1000),
-                            (double)tb_updated / (double)nb_tb_nodes);
+                            (double)tb_updated / (double)duration(&t0_game, &tend_game)/1000);
 					}
 					else if (lenp >= 7)
 					{
@@ -1819,7 +1829,7 @@ if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0 && tbnode[tbidx].id >= 
 printf("%d/%d nodes expanded, %d ignored, %d created, %d errors  ( %s )  ( %5.1f / %5.1f n/s )\n",
     nb_expanded, nb_tb_nodes, tb_ignored, tb_created, tb_errors,
     format_duration(btbuff, (int)duration(&t0_game, &tend_game)/1000),
-    (double)nb_expanded / (double)nb_tb_nodes, (double)tb_created / (double)nb_tb_nodes
+    (double)nb_expanded / (double)duration(&t0_game, &tend_game)/1000, (double)tb_created / (double)duration(&t0_game, &tend_game)/1000
     );
 					}
                 } // ========== END TABLE BASE ==========
