@@ -1156,7 +1156,7 @@ bool tb_stats(PGconn *pgConn, int depth, TB_STATS *tb_stats)
 {
 char query[256];
 
-	sprintf(query, "select count(*), min(id), max(id), min(eval), max(eval) from k2s.tb where depth = %d", depth);
+	sprintf(query, "select count(*), min(id), max(id), min(eval), max(eval), min(deep_eval), max(deep_eval) from k2s.tb where depth = %d", depth);
 	
 	PGresult *pgres = pgQuery(pgConn, query);
 	if (pgres != NULL)
@@ -1169,6 +1169,8 @@ char query[256];
 			tb_stats->max_id = atoi(PQgetvalue(pgres, 0, 2));
 			tb_stats->min_eval = atof(PQgetvalue(pgres, 0, 3));
 			tb_stats->max_eval = atof(PQgetvalue(pgres, 0, 4));
+			tb_stats->min_deep_eval = atof(PQgetvalue(pgres, 0, 5));
+			tb_stats->max_deep_eval = atof(PQgetvalue(pgres, 0, 6));
 		}
 		PQclear(pgres);
 		return true;

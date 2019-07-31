@@ -1561,7 +1561,9 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 				else if (strcmp("tbs", action) == 0) // ZE-TBS
 				{
 					TB_STATS tbs;
-                    			int tb_threshold = atoi(parameters);
+                    int tb_threshold = 20;
+                    if (strlen(parameters) > 0)
+                        tb_threshold = atoi(parameters);
 					int tb_max_depth = pgGetMax(pgConn, "depth", "k2s.tb", "");
 					int tb_up = 0, tb_down = 0;
 					char buftbs[64];
@@ -1572,9 +1574,10 @@ printf("%2d:  %3d/%s    %5.2f %%   %8d\n", inode, child_node[inode].sid, child_n
 						sprintf(buftbs, "depth = %d and eval < %d.0", tbsd, tb_threshold);
 						tb_down = pgGetCount(pgConn, "k2s.tb", buftbs);
 						if (tb_stats(pgConn, tbsd, &tbs))
-							printf("%2d / %9d  [ %9d - %-9d ]  { %5.2f - %5.2f }  %7d / %5.2f %%  ( %7d + %-7d )\n",
+printf("%2d / %9d  [ %9d - %-9d ]  { %5.2f - %5.2f }  %8d / %5.2f %%  ( %8d + %-8d )  { %5.2f - %5.2f }\n",
 								tbs.depth, tbs.count, tbs.min_id, tbs.max_id, tbs.min_eval, tbs.max_eval,
-								tb_up + tb_down, 100.0 * (double)(tb_up + tb_down)/tbs.count, tb_up, tb_down);
+								tb_up + tb_down, 100.0 * (double)(tb_up + tb_down)/tbs.count, tb_up, tb_down,
+                                tbs.min_deep_eval, tbs.max_deep_eval);
 					}
 				}
 				else if (strcmp("tbd", action) == 0) // ZE-TBD
