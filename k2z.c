@@ -396,10 +396,42 @@ int px[256], py[256];
 	return nb_slots;
 }
 
-//
+int find_tb_move(PGconn *pgConn, BOARD *board, const char *code, int move_number, int max_depth)
+{
+TB_NODE ztbnode[64];
+bool hf, vf;
+char tbkey[128];
+int idb_move = -1, d = strlen(code) / 2;
+
+	if (d != move_number)
+	{
+		printf("ERROR-TB %d %s\n", move_number, code);
+		exit(-1);
+	}
+	else if (move_number <= max_depth)
+	{
+		strcpy(tbkey, code);
+//printf("code  = %s  move_number = %d\n", code, move_number);
+		FlipMoves(board->width, tbkey, move_number, &hf, &vf);
+//printf("tbkey = %s  %c%c\n", tbkey, hf ? '+' : '-', vf ? '+' : '-');
+		int nb_tb_child_nodes = tb_code_child_nodes(pgConn, tbkey, move_number, &ztbnode[0]);
+		if (nb_tb_child_nodes > 0 && ztbnode[0].eval > 0.0 && ztbnode[0].deep_eval > 0.0)
+		{
+//printf("best move = %s\n", ztbnode[0].move);
+			FlipString(board->width, ztbnode[0].move, hf, vf);
+//printf("best move = %s\n", ztbnode[0].move);
+			idb_move = find_slot(board, ztbnode[0].move);
+			printf("_TB_[%d]= %3d/%2s  eval = %5.2f %%   deep_eval = %5.2f %%\n", move_number, idb_move,
+				ztbnode[0].move, ztbnode[0].eval, ztbnode[0].deep_eval);
+		} else printf("no tb children for %c%c%s/%s\n", hf ? '+' : '-', vf ? '+' : '-', tbkey, code);
+	}
+	return idb_move;
+}
+
+// ================
 // live
-//
-void GameLive(PGconn *pgConn, BOARD *board, int channel, char orientation, int pid, int timeout, int offset, int opid)
+// ================
+void GameLive(PGconn *pgConn, BOARD *board, int channel, char orientation, int pid, int timeout, int offset, int opid, int db_tb_max_depth)
 {
 bool end_of_game = false;
 char last_move[8], zmove[8], moves[128], winner = ' ', reason = ' ', opp_orientation = 'H', buffer[256];
@@ -486,52 +518,9 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 								}
 							}
 						}
-						else if (max_moves % 5 == 3)
+						else if (max_moves % 5 == 3) // GAME-LIVE-TB
 						{
-							MCTS child_nodes[100];
-							char cbr = 'x';
-		                			if (mcts_child_nodes(pgConn, board->width, moves, &child_nodes[0]) > 0)
-							{
-		                				if (child_nodes[0].visits >= mcts_min_visits && child_nodes[0].ratio >= mcts_min_ratio)
-								{
-									idb_move = find_slot(board, child_nodes[0].move); // move is rotated
-									//idb_move = child_nodes[0].sid;
-									cbr = '*';
-								}
-								printf("mcts[%d]= %3d/%2s  %5.2f %%   %6d visits   [%c]\n", move_number, idb_move,
-									child_nodes[0].move, 100.0*child_nodes[0].ratio, child_nodes[0].visits, cbr);
-							}
-							else
-							{
-								MCTS znode;
-								char fmoves[128];
-								bool hf, vf;
-								int dd2 = strlen(moves);
-
-								strcpy(fmoves, moves);
-								FlipMoves(board->width, fmoves, dd2/2, &hf, &vf);
-								int inode = search_mcts_node(pgConn, fmoves, &znode);
-								if (inode < 0)
-								{
-									char pmoves[128];
-									strcpy(pmoves, fmoves);
-									pmoves[dd2 - 2] = 0;
-
-									inode = search_mcts_node(pgConn, pmoves, &znode);
-
-									if (inode >= 0)
-									{
-										strcpy(pmoves, &fmoves[dd2 - 2]);
-										pmoves[2] = 0;
-										int nsid = find_slot(board, pmoves);
-										if (nsid >= 0)
-										{
-					int new_node = insert_mcts(pgConn, dd2/2, inode, nsid, pmoves, fmoves, 0, 0.0);
-printf("++++ MCTS-NODE-CREATED %s  inode = %d,  parent = %d  depth = %d  sid = %d\n", fmoves, new_node, inode, dd2/2, nsid);
-										}
-									} else printf("no mcts parent for %s\n", pmoves);
-								} else printf("no mcts children for %s, inode = %d\n", fmoves, inode);
-							}
+							idb_move = find_tb_move(pgConn, board, moves, move_number, db_tb_max_depth - depth);
 						}
 					}
 					if (idb_move >= 0)
@@ -700,38 +689,6 @@ int id, sid, parent, depth, visits;
 		}
 		PQclear(pgres);
 	}
-}
-
-int find_tb_move(PGconn *pgConn, BOARD *board, const char *code, int move_number, int max_depth)
-{
-TB_NODE ztbnode[64];
-bool hf, vf;
-char tbkey[128];
-int idb_move = -1, d = strlen(code) / 2;
-
-	if (d != move_number)
-	{
-		printf("ERROR-TB %d %s\n", move_number, code);
-		exit(-1);
-	}
-	else if (move_number <= max_depth)
-	{
-		strcpy(tbkey, code);
-//printf("code  = %s  move_number = %d\n", code, move_number);
-		FlipMoves(board->width, tbkey, move_number, &hf, &vf);
-//printf("tbkey = %s  %c%c\n", tbkey, hf ? '+' : '-', vf ? '+' : '-');
-		int nb_tb_child_nodes = tb_code_child_nodes(pgConn, tbkey, move_number, &ztbnode[0]);
-		if (nb_tb_child_nodes > 0 && ztbnode[0].eval > 0.0 && ztbnode[0].deep_eval > 0.0)
-		{
-//printf("best move = %s\n", ztbnode[0].move);
-			FlipString(board->width, ztbnode[0].move, hf, vf);
-//printf("best move = %s\n", ztbnode[0].move);
-			idb_move = find_slot(board, ztbnode[0].move);
-			printf("_TB_[%d]= %3d/%2s  eval = %5.2f %%   deep_eval = %5.2f %%\n", move_number, idb_move,
-				ztbnode[0].move, ztbnode[0].eval, ztbnode[0].deep_eval);
-		} else printf("no tb children for %c%c%s/%s\n", hf ? '+' : '-', vf ? '+' : '-', tbkey, code);
-	}
-	return idb_move;
 }
 
 // ==========
@@ -1180,7 +1137,7 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
 									if (vp > 0)
 									{
 										printf("vp %d joined live channel %d  (wait = %d)\n", vp, channel, nb_wait);
-										GameLive(pgConn, &board, channel, toupper(orient), player_id, live_timeout, offset, vp);
+										GameLive(pgConn, &board, channel, toupper(orient), player_id, live_timeout, offset, vp, db_tb_max_depth);
 										sleep(10);
 									} else printf("wait aborted after %d seconds.\n", wait_live);
 									if (orient == 'H') DeleteLive(pgConn, channel);
@@ -1204,7 +1161,7 @@ int msid = think_alpha_beta(&board, current_state, orientation, depth, max_moves
                                     LivePlayers(pgConn, channel, &hpp2, &vpp2);
 									printf("\njoined live channel id = %d, vp = %3d      hp = %3d      iloop =  %4d / %-4d\n",
                                            channel, player_id, hpp2, iloop+1, live_loop);
-									GameLive(pgConn, &board, channel, toupper(orient), player_id, live_timeout, offset, hpp2);
+									GameLive(pgConn, &board, channel, toupper(orient), player_id, live_timeout, offset, hpp2, db_tb_max_depth);
                                     sleep(10);
                                     if (orient == 'V') DeleteLive(pgConn, channel);
 								}
