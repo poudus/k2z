@@ -27,6 +27,7 @@ typedef struct
 {
 	int    depth, count, min_id, max_id;
 	double min_eval, max_eval;
+	double min_deep_eval, max_deep_eval;
 } TB_STATS;
 
 
