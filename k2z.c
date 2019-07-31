@@ -1719,7 +1719,7 @@ if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0 && tbnode[tbidx].id >= 
                         printf("%d/%d nodes valuated, %d updated, %d errors  ( %s )  ( %5.1f n/s )\n",
                             nb_valuated, nb_tb_nodes, tb_updated, tb_errors,
                             format_duration(btbuff, (int)duration(&t0_game, &tend_game)/1000),
-                            (double)tb_updated / (double)duration(&t0_game, &tend_game)/1000);
+                            (double)tb_updated / ((double)duration(&t0_game, &tend_game)/1000));
 					}
 					else if (lenp >= 7)
 					{
@@ -1829,7 +1829,7 @@ if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0 && tbnode[tbidx].id >= 
 printf("%d/%d nodes expanded, %d ignored, %d created, %d errors  ( %s )  ( %5.1f / %5.1f n/s )\n",
     nb_expanded, nb_tb_nodes, tb_ignored, tb_created, tb_errors,
     format_duration(btbuff, (int)duration(&t0_game, &tend_game)/1000),
-    (double)nb_expanded / (double)duration(&t0_game, &tend_game)/1000, (double)tb_created / (double)duration(&t0_game, &tend_game)/1000
+    (double)nb_expanded / ((double)duration(&t0_game, &tend_game)/1000), (double)tb_created / ((double)duration(&t0_game, &tend_game)/1000)
     );
 					}
                 } // ========== END TABLE BASE ==========
