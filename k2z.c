@@ -433,8 +433,8 @@ int idb_move = -1, d = strlen(code) / 2;
 // ================
 void GameLive(PGconn *pgConn, BOARD *board, int channel, char orientation, int pid, int timeout, int offset, int opid, int db_tb_max_depth)
 {
-bool end_of_game = false;
-char last_move[8], zmove[8], moves[128], winner = ' ', reason = ' ', opp_orientation = 'H', buffer[256];
+bool end_of_game = false, out_of_tb = false;
+char last_move[8], zmove[8], moves[128], winner = ' ', reason = ' ', opp_orientation = 'H', buffer[256], head_out_of_tb[64];
 int  tick = 0, slot = 0, move_number = 0, depth = 2, max_moves = 20, msid = 0, total_think_duration = 0, total_wait_duration = 0, idb_move = -1;
 STATE my_state, new_state;
 double wpegs = 0.0, wspread = 0.0, wzeta = 0.0, lambda_decay = 0.8, opponent_decay = 0.8, alpha_beta_eval = 0.0;
@@ -481,12 +481,25 @@ BOOK_MOVE bm[100];
 				if (((orientation == 'H' || orientation == 'h') && empty_field(&new_state.horizontal)) ||
 					((orientation == 'V' || orientation == 'v') && empty_field(&new_state.vertical)))
 				{
-					printf("%c resign  --------   eval   = %5.2f %%\n", orientation, dwq);
+					printf("********\n%c resign  --------   eval   = %5.2f %%\n", orientation, dwq);
 					winner = opp_orientation;
 					reason = 'R';
 					end_of_game = true;
 					ResignLive(pgConn, channel, winner, reason);
 				} else clone_state(&new_state, &my_state, false);
+
+				if (opid == 999 && max_moves % 5 == 3 && move_number <= db_tb_max_depth)
+				{
+					TB_NODE tbn;
+					int tb_node_id = tb_node(pgConn, moves, &tbn);
+					if (tb_node_id < 0 && !out_of_tb)
+					{
+						strcpy(head_out_of_tb, moves);
+						out_of_tb = true;
+						printf("OUT-OF-TB-MOVE %d/%s  %s\n", move_number, last_move, moves);
+					}
+					else printf("-FOUND-TB-MOVE %d/%s  eval = %5.2f  deep_eval = %5.2f\n", tb_node_id, moves, tbn.eval, tbn.deep_eval);
+				}
 			}
 			//---------------
 			if (!end_of_game)
@@ -553,7 +566,7 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 					if (((orientation == 'H' || orientation == 'h') && winning_field(&new_state.horizontal)) ||
 						((orientation == 'V' || orientation == 'v') && winning_field(&new_state.vertical)))
 					{
-						printf("%c win +++ eval   = %6.2f %%  move =      %s     moves =  %s\n", orientation, dwq2, zmove, moves);
+						printf("********\n%c win ++  eval   = %6.2f %%  move =      %s     moves =  %s\n", orientation, dwq2, zmove, moves);
 						winner = orientation;
 						reason = 'W';
 						end_of_game = true;
@@ -570,7 +583,7 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 		}
 		else if (CheckResign(pgConn, channel, orientation, moves))
 		{
-			printf("%c win +++ %c resigned, moves = %s\n", orientation, opp_orientation, moves);
+			printf("%c win ++  %c resigned, moves = %s\n", orientation, opp_orientation, moves);
 			winner = orientation;
 			reason = 'R';
 			end_of_game = true;
@@ -600,6 +613,36 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 	free_state(&my_state);
 	free_state(&new_state);
 	gettimeofday(&t_end, NULL);
+
+	// TB-ENHANCE
+	if (out_of_tb && opid == 999 && max_moves % 5 == 3 &&
+		(((orientation == 'H' || orientation == 'h') && winner == 'V') ||
+		(((orientation == 'V' || orientation == 'v') && winner == 'H'))))
+	{
+		int tbbdd = strlen(head_out_of_tb) / 2;
+		char head_out_of_tb2[64];
+		bool hf, vf;
+
+		strcpy(head_out_of_tb2, head_out_of_tb);
+		FlipBuffer(board->width, head_out_of_tb2, &hf, &vf);
+
+		printf("TB-LOST:  %s/%c%c%s\n", head_out_of_tb, hf ? '+' : '-', vf ? '+' : '-', head_out_of_tb2);
+		char tb_parent[64];
+		strcpy(tb_parent, head_out_of_tb2);
+		tb_parent[strlen(head_out_of_tb2)-2] = 0;
+		TB_NODE tbn;
+		int tb_node_parent_id = tb_node(pgConn, tb_parent, &tbn);
+		if (tb_node_parent_id > 0)
+		{
+			strcpy(tb_parent, &head_out_of_tb[strlen(head_out_of_tb)-2]);
+			int tb_node_id = tb_insert_node(pgConn, tbbdd, tb_node_parent_id, tb_parent, head_out_of_tb);
+			if (tb_node_id > 0)
+				printf("TB-NODE-CREATED %d/%s  depth = %d  move = %s  parent = %d\n", tb_node_id, head_out_of_tb, tbbdd, tb_parent, tb_node_parent_id);
+			else
+				printf("ERROR-TB-NODE-CREATED %s  depth = %d  move %s  parent = %d\n", head_out_of_tb, tbbdd, tb_parent, tb_node_parent_id);
+		}
+		else printf("ERROR-TB-PARENT-NOT-FOUND %s\n", tb_parent);
+	}
 	if ((orientation == 'H' || orientation == 'h' || opid == 999) && reason != 'T')
 	{
 		int ht = (int)(2 * total_think_duration / move_number);
@@ -1591,7 +1634,7 @@ printf("%2d / %9d  [ %9d - %-9d ]  { %5.2f - %5.2f }  %8d / %5.2f %%  ( %8d + %-
 
 						for (int tbidx = 0 ; tbidx < nb_tb_nodes ; tbidx++)
 						{
-                if (tbnode[tbidx].id >= tb_start && tbnode[tbidx].id <= tb_end & tbnode[tbidx].eval == 0.0)
+                if (tbnode[tbidx].id >= tb_start && tbnode[tbidx].id <= tb_end && tbnode[tbidx].eval == 0.0)
 							{
 								//----- reset states
 								current_state = &state_h;
@@ -1656,7 +1699,7 @@ printf("%2d / %9d  [ %9d - %-9d ]  { %5.2f - %5.2f }  %8d / %5.2f %%  ( %8d + %-
 								//------
 								nb_valuated++;
 							}
-if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0)
+if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0 && tbnode[tbidx].id >= tb_start && tbnode[tbidx].id <= tb_end)
     printf("---- TB %7d / %-7d  %6.2f %%  [ %d <= %8d <= %d]\n",
            tbidx, nb_tb_nodes, 100.0*tbidx/nb_tb_nodes,
            tb_start, tbnode[tbidx].id, tb_end);
@@ -1695,7 +1738,7 @@ if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0)
 						for (int tbidx = 0 ; tbidx < nb_tb_nodes ; tbidx++)
 						{
 							if (tbnode[tbidx].id >= tb_start && tbnode[tbidx].id <= tb_end &
-                                tbnode[tbidx].eval >= tb_threshold && tbnode[tbidx].eval <= 100.0 - tb_threshold)
+                                tbnode[tbidx].eval >= tb_threshold && tbnode[tbidx].eval <= 100.0 - tb_threshold && tbnode[tbidx].deep_eval == 0.0)
 							{
 								//----- reset states
 								current_state = &state_h;
@@ -1766,7 +1809,7 @@ if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0)
 							}
 							else tb_ignored++;
                             
-if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0)
+if (nb_tb_nodes > 5000 && tbidx % 1000 == 0 && tbidx > 0 && tbnode[tbidx].id >= tb_start && tbnode[tbidx].id <= tb_end)
     printf("---- TB %7d / %-7d  %6.2f %%  [ %d <= %8d <= %d]\n",
            tbidx, nb_tb_nodes, 100.0*tbidx/nb_tb_nodes,
            tb_start, tbnode[tbidx].id, tb_end);
