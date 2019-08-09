@@ -47,7 +47,6 @@ unsigned long long getCurrentUTS()
 	struct tm *pnow = localtime( &tt ); /* Convert to local time. */
 	
 	uts = pnow->tm_sec +100*pnow->tm_min + 10000*pnow->tm_hour + 1000000*pnow->tm_mday + 100000000L*(pnow->tm_mon+1);
-	
 	uty = 10000000000ULL*(pnow->tm_year+1900);
 	uts += uty;
 	
@@ -1101,7 +1100,7 @@ int tb_update_deep_evals(PGconn *pgConn, int depth)
 char query[256];
 int nodes = -1, nb_updated = 0, nb_errors = 0;
 
-    TB_NODE *tb_nodes = (TB_NODE *)malloc(5000000 * sizeof(TB_NODE));
+    TB_NODE *tb_nodes = (TB_NODE *)malloc(7000000 * sizeof(TB_NODE));
 	sprintf(query,
             "select parent, max(eval), max(deep_eval) from k2s.tb where depth = %d group by parent", depth+1);
 	

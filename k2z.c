@@ -647,11 +647,11 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 			strcpy(tb_parent, &head_out_of_tb[strlen(head_out_of_tb)-2]);
 			int tb_node_id = tb_insert_node(pgConn, tbbdd, tb_node_parent_id, tb_parent, head_out_of_tb);
 			if (tb_node_id > 0)
-				printf("TB-NODE-CREATED %d/%s  depth = %d  move = %s  parent = %d\n", tb_node_id, head_out_of_tb, tbbdd, tb_parent, tb_node_parent_id);
+				printf("++++++++  TB-NODE-CREATED %d/%s  depth = %d  move = %s  parent = %d\n", tb_node_id, head_out_of_tb, tbbdd, tb_parent, tb_node_parent_id);
 			else
-				printf("ERROR-TB-NODE-CREATED %s  depth = %d  move %s  parent = %d\n", head_out_of_tb, tbbdd, tb_parent, tb_node_parent_id);
+				printf("!!!!!!!!  ERROR-TB-NODE-CREATED  %s  depth = %d  move %s  parent = %d\n", head_out_of_tb, tbbdd, tb_parent, tb_node_parent_id);
 		}
-		else printf("ERROR-TB-PARENT-NOT-FOUND %s\n", tb_parent);
+		else printf("!!!!!!!!  ERROR-TB-PARENT-NOT-FOUND %s\n", tb_parent);
 	}
 	if ((orientation == 'H' || orientation == 'h' || opid == 999) && reason != 'T')
 	{
@@ -1592,9 +1592,9 @@ printf("%2d / %9d  [ %9d - %-9d ]  { %5.2f - %5.2f }  %8d / %5.2f %%  ( %8d + %-
 				}
 				else if (strcmp("tbd", action) == 0) // ZE-TBD
 				{
-                    			int tb_depth = atoi(parameters);
+                    int tb_depth = atoi(parameters);
 					tb_init_deep_evals(pgConn, tb_depth);
-                    			tb_update_deep_evals(pgConn, tb_depth);
+                    tb_update_deep_evals(pgConn, tb_depth);
 				}
 				else if (strcmp("tbq", action) == 0) // ZE-TBQ
 				{

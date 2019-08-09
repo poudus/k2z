@@ -524,7 +524,7 @@ unsigned long init_board(BOARD *board, int width, int height, int depth, int min
 			}
 		}
 	}
-	printf("debug.slots = %5d  size = %ld MB\n", board->slots, size_slots/1000000);
+	//printf("debug.slots = %5d  size = %ld MB\n", board->slots, size_slots/1000000);
 	long size_steps = 0;
 	// neighbors
 	board->steps = 0;
@@ -603,13 +603,13 @@ unsigned long init_board(BOARD *board, int width, int height, int depth, int min
 			}
 		}
 	}
-	printf("debug.steps = %5d  size = %ld MB\n", board->steps, size_steps/1000000);
+	//printf("debug.steps = %5d  size = %ld MB\n", board->steps, size_steps/1000000);
 	int max_neighbors = 0;
 	for (int s = 0 ; s < board->slots ; s++)
 	{
 		if (board->slot[s].neighbors > max_neighbors) max_neighbors = board->slot[s].neighbors;
 	}
-	printf("debug.max_neighbors = %d\n", max_neighbors);
+	//printf("debug.max_neighbors = %d\n", max_neighbors);
 	// cuts
 	for (int s1 = 0 ; s1 < board->steps - 1; s1++)
 	{
@@ -659,7 +659,7 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		sy += board->step[s].sy;
 		if (board->step[s].cuts > max_cuts) max_cuts = board->step[s].cuts;
 	}
-	printf("debug.max_cuts      = %d\n", max_cuts);
+	//printf("debug.max_cuts      = %d\n", max_cuts);
 
 	// -----
 	// paths
@@ -677,7 +677,7 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		if (board->slot[s].x == 0) search_path_h(board, s, -1, 0, 0, slots, 0, steps, depth-1, min_direction);
 	}
 	if (gpath_overflow) exit(-1);
-	printf("debug.horizontal_paths  = %10d             gslots = %10d  size = %ld MB\n", board->horizontal.paths, gslots, size_hpaths/ONE_MILLION);
+	//printf("debug.horizontal_paths  = %10d             gslots = %10d  size = %ld MB\n", board->horizontal.paths, gslots, size_hpaths/ONE_MILLION);
 
 	// slots paths
 	int nb_slots_path = 0, nb_steps_path = 0;
@@ -686,7 +686,7 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		nb_slots_path += board->horizontal.path[p].slots;
 		nb_steps_path += board->horizontal.path[p].steps;
 	}
-	printf("debug.nb_slots_path                                     = %10d\n", nb_slots_path);
+	//printf("debug.nb_slots_path                                     = %10d\n", nb_slots_path);
 
 	int max_path_per_slot = 0, smax = 0, sump = 0, nbw = 0;
 	for (int s = 0 ; s < board->slots ; s++)
@@ -699,11 +699,11 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		sump += board->slot[s].hpaths;
 		if (board->slot[s].hpaths < 0) nbw++;
 	}
-	printf("debug.max_path_per_slot = %10d  %s   %5.2f %%  sum = %10d  nbw  = %d\n\n", max_path_per_slot,
-			board->slot[smax].code, 100.0 * max_path_per_slot / board->horizontal.paths, sump, nbw);
+	//printf("debug.max_path_per_slot = %10d  %s   %5.2f %%  sum = %10d  nbw  = %d\n\n", max_path_per_slot,
+	//		board->slot[smax].code, 100.0 * max_path_per_slot / board->horizontal.paths, sump, nbw);
 
-	printf("debug.horizontal_paths  = %10d             gsteps = %10d\n", board->horizontal.paths, gsteps);
-	printf("debug.nb_steps_path                                     = %10d\n", nb_steps_path);
+	//printf("debug.horizontal_paths  = %10d             gsteps = %10d\n", board->horizontal.paths, gsteps);
+	//printf("debug.nb_steps_path                                     = %10d\n", nb_steps_path);
 	int max_path_per_step = 0;
 	sump = 0; nbw = 0;
 	for (int s = 0 ; s < board->steps ; s++)
@@ -716,8 +716,8 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		sump += board->step[s].hpaths;
 		if (board->step[s].hpaths < 0) nbw++;
 	}
-	printf("debug.max_path_per_step = %10d  %s %5.2f %%  sum = %10d  nbw  = %d\n\n", max_path_per_step,
-			board->step[smax].code, 100.0 * max_path_per_step / board->horizontal.paths, sump, nbw);
+	//printf("debug.max_path_per_step = %10d  %s %5.2f %%  sum = %10d  nbw  = %d\n\n", max_path_per_step,
+	//		board->step[smax].code, 100.0 * max_path_per_step / board->horizontal.paths, sump, nbw);
 
 	// vertical
 
@@ -730,7 +730,7 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		if (board->slot[s].y == 0) search_path_v(board, s, -1, 0, 0, slots, 0, steps, depth-1, min_direction);
 	}
 	if (gpath_overflow) exit(-1);
-	printf("debug.vertical_paths    = %10d             gslots = %10d  size = %ld MB\n", board->vertical.paths, gslots, size_vpaths/ONE_MILLION);
+	//printf("debug.vertical_paths    = %10d             gslots = %10d  size = %ld MB\n", board->vertical.paths, gslots, size_vpaths/ONE_MILLION);
 
 	// slots paths
 	nb_slots_path = 0; nb_steps_path = 0;
@@ -739,7 +739,7 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		nb_slots_path += board->vertical.path[p].slots;
 		nb_steps_path += board->vertical.path[p].steps;
 	}
-	printf("debug.nb_slots_path                                     = %10d\n", nb_slots_path);
+	//printf("debug.nb_slots_path                                     = %10d\n", nb_slots_path);
 
 	max_path_per_slot = 0; smax = 0; sump = 0; nbw = 0;
 	for (int s = 0 ; s < board->slots ; s++)
@@ -752,11 +752,11 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		sump += board->slot[s].vpaths;
 		if (board->slot[s].vpaths < 0) nbw++;
 	}
-	printf("debug.max_path_per_slot = %10d  %s   %5.2f %%  sum = %10d  nbw  = %d\n\n", max_path_per_slot,
-			board->slot[smax].code, 100.0 * max_path_per_slot / board->vertical.paths, sump, nbw);
+	//printf("debug.max_path_per_slot = %10d  %s   %5.2f %%  sum = %10d  nbw  = %d\n\n", max_path_per_slot,
+	//		board->slot[smax].code, 100.0 * max_path_per_slot / board->vertical.paths, sump, nbw);
 
-	printf("debug.vertical_paths    = %10d             gsteps = %10d\n", board->vertical.paths, gsteps);
-	printf("debug.nb_steps_path                                     = %10d\n", nb_steps_path);
+	//printf("debug.vertical_paths    = %10d             gsteps = %10d\n", board->vertical.paths, gsteps);
+	//printf("debug.nb_steps_path                                     = %10d\n", nb_steps_path);
 	max_path_per_step = 0;
 	sump = 0; nbw = 0;
 	for (int s = 0 ; s < board->steps ; s++)
@@ -769,10 +769,10 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		sump += board->step[s].vpaths;
 		if (board->step[s].vpaths < 0) nbw++;
 	}
-	printf("debug.max_path_per_step = %10d  %s %5.2f %%  sum = %10d  nbw  = %d\n", max_path_per_step,
-			board->step[smax].code, 100.0 * max_path_per_step / board->vertical.paths, sump, nbw);
+	//printf("debug.max_path_per_step = %10d  %s %5.2f %%  sum = %10d  nbw  = %d\n", max_path_per_step,
+	//		board->step[smax].code, 100.0 * max_path_per_step / board->vertical.paths, sump, nbw);
 
-	printf("debug.total_allocated   = %10ld  MB\n", (size_slots+size_steps+size_hpaths+size_vpaths) / ONE_MILLION);
+	//printf("debug.total_allocated   = %10ld  MB\n", (size_slots+size_steps+size_hpaths+size_vpaths) / ONE_MILLION);
 
 	fflush(stdout);
 
@@ -789,7 +789,7 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 		memcpy(&board->vertical.path[ih], &vpath[ih], sizeof(PATH));
 	free(vpath);
 
-	printf("debug.path_released     = %10ld  MB\n", paths_size_released / ONE_MILLION);
+	//printf("debug.path_released     = %10ld  MB\n", paths_size_released / ONE_MILLION);
 
 	// slots release
 
@@ -840,7 +840,7 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 			free(ph);
 		}
 	}
-	printf("debug.slots_released    = %10ld  MB\n", slots_size_released / ONE_MILLION);
+	//printf("debug.slots_released    = %10ld  MB\n", slots_size_released / ONE_MILLION);
 
 	// steps release
 
@@ -891,8 +891,8 @@ printf("xmin2 = %d  xmax2 = %d   ymin2 = %d  ymax2 = %d\n", board->step[s2].xmin
 			free(ph);
 		}
 	}
-	printf("debug.steps_released    = %10ld  MB\n", steps_size_released / ONE_MILLION);
-	printf("debug.total_released    = %10ld  MB\n", (paths_size_released+slots_size_released+steps_size_released) / ONE_MILLION);
+	//printf("debug.steps_released    = %10ld  MB\n", steps_size_released / ONE_MILLION);
+	//printf("debug.total_released    = %10ld  MB\n", (paths_size_released+slots_size_released+steps_size_released) / ONE_MILLION);
 	unsigned long ul_total_allocated = (size_slots+size_steps+size_hpaths+size_vpaths-paths_size_released-slots_size_released-steps_size_released) / ONE_MILLION;
 	printf("debug.total_allocated   = %10ld  MB\n", ul_total_allocated);
 
