@@ -1126,7 +1126,7 @@ int nodes = -1, nb_updated = 0, nb_errors = 0;
             nb_updated++;
         else
             nb_errors++;
-        if (inode % 1000 == 0) printf("---- %8d/%8d\n", inode, nodes);
+        if (inode % 1000 == 0) printf("---- %8d/%8d   %5.2f %%\n", inode, nodes, 100.0 * inode / (double)nodes);
     }
     free(tb_nodes);
     printf("%d deep eval nodes updated, %d errors\n", nodes, nb_errors);

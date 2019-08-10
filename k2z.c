@@ -645,11 +645,11 @@ printf("book[%d]= %3d/%2s  = %6.2f %%   %d - %d   %s\n", move_number, book_slot,
 		if (tb_node_parent_id > 0)
 		{
 			strcpy(tb_parent, &head_out_of_tb[strlen(head_out_of_tb)-2]);
-			int tb_node_id = tb_insert_node(pgConn, tbbdd, tb_node_parent_id, tb_parent, head_out_of_tb);
+			int tb_node_id = tb_insert_node(pgConn, tbbdd, tb_node_parent_id, tb_parent, head_out_of_tb2);
 			if (tb_node_id > 0)
-				printf("++++++++  TB-NODE-CREATED %d/%s  depth = %d  move = %s  parent = %d\n", tb_node_id, head_out_of_tb, tbbdd, tb_parent, tb_node_parent_id);
+				printf("++++++++  TB-NODE-CREATED %d/%s  depth = %d  move = %s  parent = %d\n", tb_node_id, head_out_of_tb2, tbbdd, tb_parent, tb_node_parent_id);
 			else
-				printf("!!!!!!!!  ERROR-TB-NODE-CREATED  %s  depth = %d  move %s  parent = %d\n", head_out_of_tb, tbbdd, tb_parent, tb_node_parent_id);
+				printf("!!!!!!!!  ERROR-TB-NODE-CREATED  %s  depth = %d  move %s  parent = %d\n", head_out_of_tb2, tbbdd, tb_parent, tb_node_parent_id);
 		}
 		else printf("!!!!!!!!  ERROR-TB-PARENT-NOT-FOUND %s\n", tb_parent);
 	}
